@@ -1,6 +1,6 @@
 """
 Nicotine+ Upscale Detector Plugin
-Detects upscaled audio files after download
+Detects upscaled audio files after download using true-bitrate spectrum analysis
 """
 
 import os
@@ -15,24 +15,18 @@ from pynicotine.pluginsystem import BasePlugin
 
 class Plugin(BasePlugin):
     """
-    Monitors completed downloads and checks if audio files are upscaled
+    Monitors completed downloads and checks if audio files are upscaled using true-bitrate
     """
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
         self.settings = {
-            'check_tool': 'ffprobe',
             'bitrate_tolerance': 10,
             'auto_check': True,
         }
         
         self.metasettings = {
-            'check_tool': {
-                'description': 'Tool to use for upscale detection',
-                'type': 'dropdown',
-                'options': ['ffprobe', 'true-bitrate']
-            },
             'bitrate_tolerance': {
                 'description': 'Bitrate variance tolerance in percentage (0-50)',
                 'type': 'int',
@@ -91,8 +85,7 @@ class Plugin(BasePlugin):
         """Queue a file for upscale checking"""
         if filepath not in self.pending_files:
             self.pending_files.append(filepath)
-            tool = self.settings['check_tool']
-            self.log(f"Checking with {tool}: {filepath}")
+            self.log(f"Checking with true-bitrate: {filepath}")
             
             if self.check_thread is None or not self.check_thread.is_alive():
                 self.check_thread = threading.Thread(
@@ -136,7 +129,7 @@ class Plugin(BasePlugin):
         
         try:
             declared_br = self._get_declared_bitrate(filepath)
-            actual_br = self._get_actual_bitrate(filepath)
+            actual_br = self._check_with_true_bitrate(filepath)
             
             if declared_br is None or actual_br is None:
                 return {
@@ -169,7 +162,7 @@ class Plugin(BasePlugin):
             return {'status': 'Error', 'reason': str(e), 'timestamp': time.time()}
     
     def _get_declared_bitrate(self, filepath):
-        """Extract bitrate from file metadata"""
+        """Extract bitrate from file metadata using ffprobe"""
         try:
             cmd = [
                 'ffprobe', '-v', 'error',
@@ -209,17 +202,8 @@ class Plugin(BasePlugin):
             self.log(f"Error getting declared bitrate: {e}")
             return None
     
-    def _get_actual_bitrate(self, filepath):
-        """Get the actual bitrate using spectrum analysis"""
-        tool = self.settings['check_tool']
-        
-        if tool == 'true-bitrate':
-            return self._check_with_true_bitrate(filepath)
-        else:
-            return self._check_with_ffprobe(filepath)
-    
     def _check_with_true_bitrate(self, filepath):
-        """Use true-bitrate tool for analysis"""
+        """Use true-bitrate tool for spectrum analysis"""
         try:
             cmd = ['true-bitrate', filepath]
             result = subprocess.run(
@@ -262,35 +246,10 @@ class Plugin(BasePlugin):
             return None
             
         except FileNotFoundError:
-            self.log("true-bitrate tool not found")
+            self.log("true-bitrate tool not found. Install: git clone https://github.com/dvorapa/true-bitrate.git")
             return None
         except Exception as e:
             self.log(f"Error with true-bitrate: {e}")
-            return None
-    
-    def _check_with_ffprobe(self, filepath):
-        """Use ffprobe for bitrate analysis"""
-        try:
-            cmd = [
-                'ffprobe', '-v', 'error',
-                '-select_streams', 'a:0',
-                '-show_entries', 'stream=bit_rate',
-                '-of', 'default=noprint_wrappers=1:nokey=1',
-                filepath
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            
-            if result.stdout.strip():
-                br_bits = int(result.stdout.strip())
-                return br_bits // 1000
-            
-            return None
-            
-        except FileNotFoundError:
-            self.log("ffprobe not found. Install: sudo apt install ffmpeg")
-            return None
-        except Exception as e:
-            self.log(f"Error with ffprobe: {e}")
             return None
     
     def _extract_bitrate_from_filename(self, filepath):

@@ -1,16 +1,15 @@
 # Upscale Detector for Nicotine+
 
-Automatically detects upscaled audio files in your Nicotine+ downloads. Upscaled files are deceptively labeled with high bitrates (e.g., 320 kbps) but contain lower quality audio that was originally encoded at a lower bitrate (e.g., 128 kbps).
+Automatically detects upscaled audio files in your Nicotine+ downloads using spectrum analysis. Upscaled files are deceptively labeled with high bitrates (e.g., 320 kbps) but contain lower quality audio that was originally encoded at a lower bitrate (e.g., 128 kbps).
 
 ## Features
 
 - 🎵 Monitors completed downloads for audio file upscaling
-- 📊 Two detection backends: **ffprobe** (fast) or **true-bitrate** (accurate spectrum analysis)
+- 📊 Uses **true-bitrate** spectrum analysis for accurate detection
 - 🔍 Supports multiple audio formats: MP3, FLAC, OGG, M4A, AAC, Opus, WMA, ALAC, APE, WAV
 - ⚙️ Configurable bitrate tolerance threshold (0-50%)
 - 💾 Persistent cache file for results across sessions
 - 📝 Clear console logging with status indicators (✓ Passed, ✗ Failed)
-- 🔧 Dropdown menu to easily switch between detection tools
 
 ## How Upscale Detection Works
 
@@ -20,54 +19,34 @@ An upscaled file is one where someone takes a low-bitrate audio file and re-enco
 - Re-encoded to: 320 kbps MP3 (metadata says 320 kbps, but audio still sounds like 128 kbps)
 - Result: Much larger file size with no quality improvement
 
-### Detection Methods
+### true-bitrate Spectrum Analysis
+This plugin uses **true-bitrate** which analyzes the actual audio frequencies present in the file:
 
-#### ffprobe (Fast)
-- **Speed**: < 1 second per file
-- **Method**: Reads metadata from the audio file
-- **Accuracy**: Catches obvious cases where metadata is incorrect
-- **Limitation**: Cannot detect cleverly upscaled files where metadata is also changed to match the false bitrate
+- **Real 320 kbps audio** has frequencies across the full spectrum (up to ~20 kHz for human hearing)
+- **Upscaled 128 kbps re-encoded to 320 kbps** will have the audio spectrum artificially cut off (~11-13 kHz)
+- **true-bitrate detects this frequency cutoff** and calculates the original bitrate
 
-**When to use**: Quick checking, when you just want to verify files aren't obviously mislabeled
-
-#### true-bitrate (Accurate) ⭐ Recommended
-- **Speed**: 1-5 seconds per file
-- **Method**: Spectrum analysis (FFT) - analyzes actual audio frequencies present
-- **Accuracy**: Detects upscaled files even when metadata is faked
-- **Technical Details**: 
-  - Real 320 kbps audio has frequencies across the full spectrum (up to ~20 kHz for human hearing)
-  - Upscaled 128 kbps re-encoded to 320 kbps will have frequencies cut off (~11-13 kHz)
-  - true-bitrate detects this frequency cutoff and calculates the original bitrate
-
-**When to use**: Serious quality checking, when you want to catch all upscales
+This method is far more accurate than just reading metadata, catching upscales even when the file metadata is faked.
 
 ### Detection Examples
 
 **Genuine 320 kbps file:**
 ```
 Declared: 320 kbps
-Actual: 320 kbps
+Actual: 320 kbps (20 kHz cutoff)
 Result: ✓ PASSED
 ```
 
 **Upscaled file (128 kbps re-encoded as 320 kbps):**
 ```
-With ffprobe:
-  Declared: 320 kbps (metadata says so)
-  Actual: 320 kbps (metadata reads)
-  Result: ✓ PASSED (false positive - can't detect)
-
-With true-bitrate:
-  Declared: 320 kbps (claimed in metadata)
-  Actual: 128 kbps (spectrum analysis detects frequency cutoff)
-  Result: ✗ FAILED (correctly detected!)
+Declared: 320 kbps (metadata says so)
+Actual: 128 kbps (14 kHz frequency cutoff detected)
+Result: ✗ FAILED
 ```
 
 ## Installation
 
-### 1. Install ffprobe (Required)
-
-ffprobe comes with ffmpeg:
+### 1. Install ffmpeg (Required for metadata reading)
 
 ```bash
 sudo apt install ffmpeg
@@ -78,7 +57,7 @@ Verify it works:
 ffprobe -version
 ```
 
-### 2. Install true-bitrate (Optional but Recommended)
+### 2. Install true-bitrate (Required for spectrum analysis)
 
 #### Step 2a: Install dependencies
 
@@ -95,13 +74,13 @@ cd true-bitrate
 
 #### Step 2c: Fix the path in the wrapper script
 
-The `true-bitrate` script needs to know where `true-bitrate.py` is located. Edit it:
+The `true-bitrate` script needs to know where `true-bitrate.py` is located. Run:
 
 ```bash
 sudo sed -i "s|python true-bitrate.py|python $(pwd)/true-bitrate.py|g" true-bitrate
 ```
 
-Or manually edit `/true-bitrate` to replace `python true-bitrate.py` with the full path to `true-bitrate.py`
+Or manually edit the `true-bitrate` file and replace `python true-bitrate.py` with the full path to `true-bitrate.py`
 
 #### Step 2d: Make it available system-wide
 
@@ -143,11 +122,6 @@ cp -r upscale-detector /path/to/your/nicotine/plugins/
 ## Configuration
 
 In Nicotine+, go to **Preferences → Plugins → Upscale Detector** to configure:
-
-### check_tool
-Dropdown menu to select which detection tool to use:
-- **ffprobe** - Fast metadata checking (default)
-- **true-bitrate** - Accurate spectrum analysis (recommended)
 
 ### bitrate_tolerance
 Percentage variance allowed between declared and actual bitrate (0-50%, default: 10%)
@@ -225,7 +199,7 @@ This is harmless and doesn't affect functionality. It's a warning from an older 
 
 ### All files show "Error"
 1. Check that ffprobe is installed: `ffprobe -version`
-2. Try switching between ffprobe and true-bitrate in settings
+2. Check that true-bitrate works: `true-bitrate /path/to/file.mp3`
 3. Check file permissions - plugin must be able to read the files
 
 ### Too many false positives
@@ -235,24 +209,18 @@ Increase the `bitrate_tolerance` setting (try 15-20%)
 
 - **Nicotine+** 3.3.7+
 - **Python** 3.8+
-- **ffmpeg** (provides ffprobe) - required
-- **true-bitrate** - optional (recommended)
-- **scipy** - required only if using true-bitrate
-- **matplotlib** - required only if using true-bitrate
+- **ffmpeg** (provides ffprobe) - required for metadata reading
+- **true-bitrate** - required for spectrum analysis
+- **scipy** - required for true-bitrate
+- **matplotlib** - required for true-bitrate
 
 ## Performance
 
-### ffprobe
-- Per-file time: < 1 second
-- CPU usage: Low
-- Accuracy: Medium (metadata-based)
-
-### true-bitrate
 - Per-file time: 1-5 seconds
 - CPU usage: Medium (spectrum analysis)
 - Accuracy: High (frequency analysis)
 
-**Tip**: Use ffprobe for quick checking, true-bitrate for thorough quality control
+**Tip**: true-bitrate performs FFT (Fast Fourier Transform) analysis on audio, so it's more CPU intensive than simple metadata checking, but the accuracy is worth it!
 
 ## Supported Audio Formats
 
