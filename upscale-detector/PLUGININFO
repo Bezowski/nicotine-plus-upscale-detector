@@ -1,0 +1,5 @@
+Version="1.0.0"
+Authors=['bez']
+Name="Upscale Detector"
+Description="Detects upscaled audio files in downloads and adds verification column. Supports MP3, FLAC, OGG, and other audio formats. Uses true-bitrate or ffprobe for accurate bitrate analysis."
+Prefix="GPF"
