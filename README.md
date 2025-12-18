@@ -65,7 +65,8 @@ pipx install spectro
 
 Verify it works:
 ```bash
-spectro check ~/Music/test.mp3
+cd ~/Music
+spectro check test.mp3
 ```
 
 You should see output like:
@@ -76,6 +77,8 @@ or
 ```
 test.mp3 is MP3 [320 kbps], but has max frequency about 16780 Hz.
 ```
+
+**Note:** spectro must be run from the same directory as the audio file when checking individual files.
 
 ### 3. Install the Plugin
 
