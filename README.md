@@ -144,7 +144,9 @@ Make sure you:
 1. Installed spectro: `pipx install spectro`
 2. Have pipx installed: `sudo apt install pipx`
 
-Test: `spectro check /path/to/file.mp3`
+**Note:** spectro must be run from the same directory as the audio file when checking individual files.
+
+Test: `spectro check file.mp3`
 
 ### Plugin loads but doesn't check files
 1. Make sure `auto_check` is enabled in plugin settings
@@ -152,7 +154,7 @@ Test: `spectro check /path/to/file.mp3`
 3. Watch the Nicotine+ console for output
 
 ### All files show "Error"
-1. Check that spectro is installed: `spectro check ~/Music/test.mp3`
+1. Check that spectro is installed: `spectro check test.mp3`
 2. Check file permissions - plugin must be able to read the files
 3. Ensure audio files aren't corrupted
 
