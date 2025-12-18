@@ -1,6 +1,6 @@
 """
 Nicotine+ Upscale Detector Plugin
-Detects upscaled audio files after download using true-bitrate spectrum analysis
+Detects upscaled audio files after download using spectro frequency analysis
 """
 
 import os
@@ -15,24 +15,17 @@ from pynicotine.pluginsystem import BasePlugin
 
 class Plugin(BasePlugin):
     """
-    Monitors completed downloads and checks if audio files are upscaled using true-bitrate
+    Monitors completed downloads and checks if audio files are upscaled using spectro
     """
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
         self.settings = {
-            'bitrate_tolerance': 10,
             'auto_check': True,
         }
         
         self.metasettings = {
-            'bitrate_tolerance': {
-                'description': 'Bitrate variance tolerance in percentage (0-50)',
-                'type': 'int',
-                'minimum': 0,
-                'maximum': 50
-            },
             'auto_check': {
                 'description': 'Automatically check files when download completes',
                 'type': 'bool'
@@ -85,7 +78,7 @@ class Plugin(BasePlugin):
         """Queue a file for upscale checking"""
         if filepath not in self.pending_files:
             self.pending_files.append(filepath)
-            self.log(f"Checking with true-bitrate: {filepath}")
+            self.log(f"Checking with spectro: {filepath}")
             
             if self.check_thread is None or not self.check_thread.is_alive():
                 self.check_thread = threading.Thread(
@@ -118,7 +111,7 @@ class Plugin(BasePlugin):
     
     def _check_file(self, filepath):
         """
-        Check if an audio file is upscaled
+        Check if an audio file is upscaled using spectro
         Returns: {'status': 'Passed'|'Failed'|'Skipped'|'Error', 'reason': str, 'timestamp': float}
         """
         if not os.path.exists(filepath):
@@ -128,32 +121,14 @@ class Plugin(BasePlugin):
             return {'status': 'Skipped', 'reason': 'Not an audio file', 'timestamp': time.time()}
         
         try:
-            declared_br = self._get_declared_bitrate(filepath)
-            actual_br = self._check_with_true_bitrate(filepath)
+            result = self._check_with_spectro(filepath)
             
-            if declared_br is None or actual_br is None:
+            if result is None:
                 return {
                     'status': 'Error',
-                    'reason': 'Could not determine bitrate',
+                    'reason': 'Could not analyze file',
                     'timestamp': time.time()
                 }
-            
-            tolerance = (self.settings['bitrate_tolerance'] / 100.0) * declared_br
-            difference = declared_br - actual_br
-            
-            result = {
-                'declared_br': declared_br,
-                'actual_br': actual_br,
-                'difference': difference,
-                'timestamp': time.time()
-            }
-            
-            if difference > tolerance:
-                result['status'] = 'Failed'
-                result['reason'] = f'Actual {actual_br}kbps vs declared {declared_br}kbps'
-            else:
-                result['status'] = 'Passed'
-                result['reason'] = f'{actual_br}kbps (within {self.settings["bitrate_tolerance"]}% tolerance)'
             
             return result
             
@@ -161,113 +136,81 @@ class Plugin(BasePlugin):
             self.log(f"Error checking {filepath}: {e}")
             return {'status': 'Error', 'reason': str(e), 'timestamp': time.time()}
     
-    def _get_declared_bitrate(self, filepath):
-        """Extract bitrate from file metadata using ffprobe"""
+    def _check_with_spectro(self, filepath):
+        """Use spectro for frequency analysis of individual files"""
         try:
-            cmd = [
-                'ffprobe', '-v', 'error',
-                '-select_streams', 'a:0',
-                '-show_entries', 'stream=bit_rate',
-                '-of', 'default=noprint_wrappers=1:nokey=1',
-                filepath
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            # Get directory and filename
+            file_dir = os.path.dirname(filepath)
+            filename = os.path.basename(filepath)
             
-            if result.stdout.strip():
-                try:
-                    br_bits = int(result.stdout.strip())
-                    return br_bits // 1000
-                except ValueError:
-                    pass
+            # Save current directory
+            original_dir = os.getcwd()
             
-            # Fallback: use format bitrate if stream bitrate not available
-            cmd2 = [
-                'ffprobe', '-v', 'error',
-                '-show_entries', 'format=bit_rate',
-                '-of', 'default=noprint_wrappers=1:nokey=1',
-                filepath
-            ]
-            result2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=10)
-            
-            if result2.stdout.strip():
-                try:
-                    br_bits = int(result2.stdout.strip())
-                    return br_bits // 1000
-                except ValueError:
-                    pass
-            
-            return self._extract_bitrate_from_filename(filepath)
-            
-        except Exception as e:
-            self.log(f"Error getting declared bitrate: {e}")
-            return None
-    
-    def _check_with_true_bitrate(self, filepath):
-        """Use true-bitrate tool for spectrum analysis"""
-        try:
-            cmd = ['true-bitrate', filepath]
-            result = subprocess.run(
-                cmd, 
-                capture_output=True, 
-                text=True, 
-                timeout=30
-            )
-            
-            if result.returncode == 0:
-                lines = result.stdout.strip().split('\n')
+            try:
+                # Change to file directory
+                os.chdir(file_dir)
                 
-                for line in lines:
-                    # Look for lines with "kbps" in them
-                    if 'kbps' in line.lower():
-                        match = re.search(r'(\d+)\s*kbps', line, re.IGNORECASE)
-                        if match:
-                            return int(match.group(1))
+                # Run spectro on the file
+                cmd = ['spectro', 'check', filename]
+                result = subprocess.run(
+                    cmd, 
+                    capture_output=True, 
+                    text=True, 
+                    timeout=60
+                )
                 
-                # If no "kbps" line found, try to parse frequency and convert
-                for line in lines:
-                    if 'khz' in line.lower():
-                        match = re.search(r'(\d+(?:\.\d+)?)\s*kHz', line, re.IGNORECASE)
-                        if match:
-                            freq = float(match.group(1))
-                            # Convert frequency to approximate bitrate
-                            if freq <= 11:
-                                return 64
-                            elif freq <= 13:
-                                return 96
-                            elif freq <= 15:
-                                return 128
-                            elif freq <= 17:
-                                return 192
-                            elif freq <= 19:
-                                return 256
-                            else:
-                                return 320
-            
-            return None
+                # Change back to original directory
+                os.chdir(original_dir)
+                
+                if result.returncode == 0:
+                    # Parse spectro output - join all lines in case output is wrapped
+                    output_line = ' '.join(result.stdout.strip().split())
+                    
+                    if 'seems good' in output_line:
+                        # Extract bitrate if available
+                        bitrate_match = re.search(r'\[(\d+)\s*kbps\]', output_line)
+                        bitrate = bitrate_match.group(1) if bitrate_match else 'unknown'
+                        
+                        return {
+                            'status': 'Passed',
+                            'bitrate': bitrate,
+                            'reason': f'{bitrate} kbps - frequency spectrum looks good',
+                            'timestamp': time.time()
+                        }
+                    elif 'has max' in output_line and 'frequency' in output_line:
+                        # Extract bitrate and frequency
+                        bitrate_match = re.search(r'\[(\d+)\s*kbps\]', output_line)
+                        # Match frequency with or without "about" prefix
+                        freq_match = re.search(r'(?:about\s+)?(\d+)\s*Hz', output_line)
+                        
+                        bitrate = bitrate_match.group(1) if bitrate_match else 'unknown'
+                        frequency = freq_match.group(1) if freq_match else 'unknown'
+                        
+                        return {
+                            'status': 'Failed',
+                            'bitrate': bitrate,
+                            'frequency': frequency,
+                            'reason': f'{bitrate} kbps claimed, but max frequency {frequency} Hz - likely upscaled',
+                            'timestamp': time.time()
+                        }
+                    else:
+                        # Output doesn't match expected format
+                        self.log(f"Unexpected spectro output format: {output_line}")
+                        return None
+                
+            finally:
+                # Ensure we change back to original directory
+                os.chdir(original_dir)
             
         except FileNotFoundError:
-            self.log("true-bitrate tool not found. Install: git clone https://github.com/dvorapa/true-bitrate.git")
+            self.log("spectro tool not found. Install: pipx install spectro")
+            return None
+        except subprocess.TimeoutExpired:
+            self.log(f"spectro analysis timed out for {filepath}")
             return None
         except Exception as e:
-            self.log(f"Error with true-bitrate: {e}")
+            self.log(f"Error with spectro: {e}")
             return None
-    
-    def _extract_bitrate_from_filename(self, filepath):
-        """Try to extract declared bitrate from filename"""
-        filename = os.path.basename(filepath)
-        
-        patterns = [
-            r'(\d{2,3})\s*kbps',
-            r'\[(\d{2,3})\]',
-            r'_(\d{2,3})',
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, filename, re.IGNORECASE)
-            if match:
-                return int(match.group(1))
-        
-        return None
     
     def _is_audio_file(self, filepath):
         """Check if file is an audio file"""
