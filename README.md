@@ -100,10 +100,59 @@ cp -r upscale-detector /path/to/your/nicotine/plugins/
 
 In Nicotine+, go to **Preferences → Plugins → Upscale Detector** to configure:
 
-### auto_check
-Enable/disable automatic checking when files complete downloading (default: enabled)
+### enable_logging
+Enable/disable logging to file and cache (default: enabled)
+
+When enabled, creates:
+- Log files (`spectro_check.log`) alongside audio files or in album folders
+- Cache file (`~/.config/nicotine/upscale_check_cache.json`)
+
+When disabled, skips both file logging and cache saving.
+
+### music_directory
+Path to your music directory (default: `~/Music`)
+
+This setting is used to distinguish between:
+- Individual files downloaded to your root music directory → creates log file with filename
+- Album folders within your music directory → creates log file with folder name
+
+Set this to match your Nicotine+ downloads folder. For example:
+- `~/Music`
+- `~/Downloads/Music`
+- `/mnt/media/music`
 
 ## Usage
+
+### Automatic Checking
+
+Files are automatically checked when downloads complete. Results are logged to the console and optionally saved to log files.
+
+### Log Files
+
+When `enable_logging` is enabled, the plugin creates log files with check results:
+
+**For album/folder downloads:**
+```
+~/Music/2004 - The Grey Album (with Danger Mouse)/
+├── 01 - Track One.mp3
+├── 02 - Track Two.mp3
+└── 2004 - The Grey Album (with Danger Mouse) - spectro_check.log
+```
+
+**For individual file downloads:**
+```
+~/Music/
+├── Eric Sneo Live @ Kinki Palace (03-10-07).mp3
+└── Eric Sneo Live @ Kinki Palace (03-10-07) - spectro_check.log
+```
+
+Log files are created in the same directory as the audio files and contain check results in this format:
+
+```
+✓ Upscale Check: [Passed] 01 Track One.mp3 - 320 kbps - frequency spectrum looks good
+✓ Upscale Check: [Passed] 02 Track Two.mp3 - 320 kbps - frequency spectrum looks good
+✗ Upscale Check: [Failed] 03 Track Three.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
+```
 
 ### Console Output
 
@@ -144,9 +193,7 @@ Make sure you:
 1. Installed spectro: `pipx install spectro`
 2. Have pipx installed: `sudo apt install pipx`
 
-**Note:** spectro must be run from the same directory as the audio file when checking individual files.
-
-Test: `spectro check file.mp3`
+Test: `spectro check /path/to/file.mp3`
 
 ### Plugin loads but doesn't check files
 1. Make sure `auto_check` is enabled in plugin settings
@@ -154,7 +201,7 @@ Test: `spectro check file.mp3`
 3. Watch the Nicotine+ console for output
 
 ### All files show "Error"
-1. Check that spectro is installed: `spectro check test.mp3`
+1. Check that spectro is installed: `spectro check ~/Music/test.mp3`
 2. Check file permissions - plugin must be able to read the files
 3. Ensure audio files aren't corrupted
 

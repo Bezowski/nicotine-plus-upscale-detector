@@ -22,13 +22,18 @@ class Plugin(BasePlugin):
         super().__init__(*args, **kwargs)
         
         self.settings = {
-            'auto_check': True,
+            'enable_logging': True,
+            'music_directory': str(Path.home() / 'Music'),
         }
         
         self.metasettings = {
-            'auto_check': {
-                'description': 'Automatically check files when download completes',
+            'enable_logging': {
+                'description': 'Enable logging to file and cache (disables both spectro_check.log and upscale_check_cache.json)',
                 'type': 'bool'
+            },
+            'music_directory': {
+                'description': 'Path to your music directory (for individual file logging)',
+                'type': 'str'
             },
         }
         
@@ -52,7 +57,7 @@ class Plugin(BasePlugin):
     
     def _load_cache(self):
         """Load cached check results"""
-        if self.cache_file and self.cache_file.exists():
+        if self.cache_file and self.cache_file.exists() and self.settings['enable_logging']:
             try:
                 with open(self.cache_file, 'r') as f:
                     self.checks_cache = json.load(f)
@@ -62,7 +67,7 @@ class Plugin(BasePlugin):
     
     def _save_cache(self):
         """Save check results to cache file"""
-        if self.cache_file:
+        if self.cache_file and self.settings['enable_logging']:
             try:
                 with open(self.cache_file, 'w') as f:
                     json.dump(self.checks_cache, f, indent=2)
@@ -71,7 +76,8 @@ class Plugin(BasePlugin):
     
     def download_finished_notification(self, user, virtual_path, real_path):
         """Called when a file download completes"""
-        if self.settings['auto_check']:
+        # Always queue audio files for checking
+        if self._is_audio_file(real_path):
             self._queue_file_check(real_path)
     
     def _queue_file_check(self, filepath):
@@ -107,7 +113,12 @@ class Plugin(BasePlugin):
                 else:
                     symbol = "!"
                 
-                self.log(f"{symbol} Upscale Check: [{status}] {filename} - {reason}")
+                log_message = f"{symbol} Upscale Check: [{status}] {filename} - {reason}"
+                self.log(log_message)
+                
+                # Write to log file (skip skipped files)
+                if status != 'Skipped':
+                    self._write_to_log_file(filepath, log_message)
     
     def _check_file(self, filepath):
         """
@@ -219,6 +230,39 @@ class Plugin(BasePlugin):
             '.opus', '.wma', '.alac', '.ape', '.wav'
         }
         return os.path.splitext(filepath)[1].lower() in audio_extensions
+    
+    def _write_to_log_file(self, filepath, log_message):
+        """Write check result to a log file
+        
+        For files in subdirectories (album folders): creates one log per folder with folder name
+        For files in root music directory: creates one log per file with filename
+        """
+        if not self.settings['enable_logging']:
+            return
+            
+        try:
+            file_dir = os.path.dirname(filepath)
+            filename = os.path.basename(filepath)
+            filename_without_ext = os.path.splitext(filename)[0]
+            music_dir = os.path.expanduser(self.settings['music_directory'])
+            
+            # Check if file is in root music directory or a subdirectory
+            if file_dir == music_dir:
+                # File is in root music directory - create log with filename
+                log_filename = f"{filename_without_ext} - spectro_check.log"
+                log_path = os.path.join(file_dir, log_filename)
+            else:
+                # File is in a subdirectory (album folder) - create log with folder name
+                folder_name = os.path.basename(file_dir)
+                log_filename = f"{folder_name} - spectro_check.log"
+                log_path = os.path.join(file_dir, log_filename)
+            
+            # Write to log file (append mode)
+            with open(log_path, 'a') as log_file:
+                log_file.write(log_message + '\n')
+                
+        except Exception as e:
+            self.log(f"Error writing to log file: {e}")
     
     def disable(self):
         """Clean up when plugin is disabled"""
