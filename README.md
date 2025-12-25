@@ -1,11 +1,11 @@
 # Upscale Detector for Nicotine+
 
-Automatically detects upscaled audio files in your Nicotine+ downloads using spectro frequency analysis. Upscaled files are deceptively labeled with high bitrates (e.g., 320 kbps) but contain lower quality audio that was originally encoded at a lower bitrate (e.g., 128 kbps).
+Automatically detects upscaled audio files in your Nicotine+ downloads using spectrum frequency analysis. Upscaled files are deceptively labeled with high bitrates (e.g., 320 kbps) but contain lower quality audio that was originally encoded at a lower bitrate (e.g., 128 kbps).
 
 ## Features
 
 - 🎵 Monitors completed downloads for audio file upscaling
-- 📊 Uses **spectro** frequency analysis for accurate detection
+- 📊 Uses **[spectro](https://github.com/nschloe/spectro)** frequency analysis for accurate detection
 - 🔍 Supports multiple audio formats: MP3, FLAC, OGG, M4A, AAC, Opus, WMA, ALAC, APE, WAV
 - 💾 Persistent cache file for results across sessions
 - 📝 Clear console logging with status indicators (✓ Passed, ✗ Failed)
