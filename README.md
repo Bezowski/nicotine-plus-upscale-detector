@@ -1,6 +1,6 @@
 # Upscale Detector for Nicotine+
 
-Automatically detects upscaled audio files in your Nicotine+ downloads using spectrum frequency analysis. Upscaled files are deceptively labeled with high bitrates (e.g., 320 kbps) but contain lower quality audio that was originally encoded at a lower bitrate (e.g., 128 kbps).
+Automatically detects upscaled audio files as they download in Nicotine+ using spectrum frequency analysis. Upscaled files are deceptively labeled with high bitrates (e.g., 320 kbps) but contain lower quality audio that was originally encoded at a lower bitrate (e.g., 128 kbps).
 
 ## Features
 
