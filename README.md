@@ -159,15 +159,13 @@ Log files are created in the same directory as the audio files and contain check
 When a file finishes downloading, you'll see:
 
 ```
-Upscale Detector: Checking with spectro: /path/to/file.mp3
-Upscale Detector: ✓ Upscale Check: [Passed] file.mp3 - 320 kbps - frequency spectrum looks good
+Upscale Detector: ✓[Passed] file.mp3 - 320 kbps - frequency spectrum looks good
 ```
 
 or
 
 ```
-Upscale Detector: Checking with spectro: /path/to/file.mp3
-Upscale Detector: ✗ Upscale Check: [Failed] file.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
+Upscale Detector: ✗[Failed] file.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
 ```
 
 ### Status Indicators
