@@ -84,7 +84,6 @@ class Plugin(BasePlugin):
         """Queue a file for upscale checking"""
         if filepath not in self.pending_files:
             self.pending_files.append(filepath)
-            self.log(f"Checking with spectro: {filepath}")
             
             if self.check_thread is None or not self.check_thread.is_alive():
                 self.check_thread = threading.Thread(
@@ -105,6 +104,11 @@ class Plugin(BasePlugin):
                 status = result.get('status', 'Unknown')
                 reason = result.get('reason', '')
                 filename = os.path.basename(filepath)
+                file_dir = os.path.dirname(filepath)
+                
+                # Get parent folder name for display
+                parent_dir = os.path.basename(file_dir) if file_dir else ''
+                display_path = f"{parent_dir}/{filename}" if parent_dir else filename
                 
                 if status == 'Passed':
                     symbol = "✓"
@@ -113,12 +117,13 @@ class Plugin(BasePlugin):
                 else:
                     symbol = "!"
                 
-                log_message = f"{symbol} Upscale Check: [{status}] {filename} - {reason}"
+                # Log result with folder/filename path
+                log_message = f"{symbol} [{status}] {display_path} - {reason}"
                 self.log(log_message)
                 
                 # Write to log file (skip skipped files)
                 if status != 'Skipped':
-                    self._write_to_log_file(filepath, log_message)
+                    self._write_to_log_file(filepath, f"{symbol} [{status}] {filename} - {reason}")
     
     def _check_file(self, filepath):
         """
