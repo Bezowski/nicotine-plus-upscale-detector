@@ -4,39 +4,44 @@ Automatically detects upscaled audio files as they download in Nicotine+ using s
 
 ## Features
 
-- 🎵 Monitors completed downloads for audio file upscaling
-- 📊 Uses **[spectro](https://github.com/nschloe/spectro)** frequency analysis for accurate detection
-- 🔍 Supports multiple audio formats: MP3, FLAC, OGG, M4A, AAC, Opus, WMA, ALAC, APE, WAV
-- 💾 Persistent cache file for results across sessions
-- 📝 Clear console logging with status indicators (✓ Passed, ✗ Failed)
-- 📈 Displays detected frequency cutoff for suspicious files
+* 🎵 Monitors completed downloads for audio file upscaling
+* 📊 Uses **[spectro](https://github.com/nschloe/spectro)** frequency analysis for accurate detection
+* 🔍 Supports multiple audio formats: MP3, FLAC, OGG, M4A, AAC, Opus, WMA, ALAC, APE, WAV
+* 📝 Clear console logging with status indicators (✓ Passed, ✗ Failed)
+* 📈 Displays detected frequency cutoff for suspicious files
+* ⚡ Efficient single-threaded queue processing to prevent system overload
 
 ## How Upscale Detection Works
 
 ### The Problem
+
 An upscaled file is one where someone takes a low-bitrate audio file and re-encodes it at a higher bitrate without improving the audio quality. For example:
-- Original: 128 kbps MP3 (real audio quality)
-- Re-encoded to: 320 kbps MP3 (metadata says 320 kbps, but audio still sounds like 128 kbps)
-- Result: Much larger file size with no quality improvement
+
+* Original: 128 kbps MP3 (real audio quality)
+* Re-encoded to: 320 kbps MP3 (metadata says 320 kbps, but audio still sounds like 128 kbps)
+* Result: Much larger file size with no quality improvement
 
 ### Spectro Frequency Analysis
+
 This plugin uses **spectro** which analyzes the actual audio frequencies present in the file:
 
-- **Real 320 kbps audio** has frequencies across the full spectrum (up to ~20 kHz for human hearing)
-- **Upscaled 128 kbps re-encoded to 320 kbps** will have the audio spectrum artificially cut off (~14-16 kHz)
-- **Spectro detects this frequency cutoff** and reports if the file "seems good" or has suspicious frequency limits
+* **Real 320 kbps audio** has frequencies across the full spectrum (up to ~20 kHz for human hearing)
+* **Upscaled 128 kbps re-encoded to 320 kbps** will have the audio spectrum artificially cut off (~14-16 kHz)
+* **Spectro detects this frequency cutoff** and reports if the file "seems good" or has suspicious frequency limits
 
 This method is far more accurate than just reading metadata, catching upscales even when the file metadata is faked.
 
 ### Detection Examples
 
 **Genuine 320 kbps file:**
+
 ```
 02 Derelicts of Dialect.mp3 seems good [320 kbps].
 Result: ✓ PASSED
 ```
 
 **Upscaled file (128 kbps re-encoded as 320 kbps):**
+
 ```
 03 Ace in the Hole.mp3 is MP3 [320 kbps], but has max frequency about 16780 Hz.
 Result: ✗ FAILED - max frequency 16780 Hz detected
@@ -64,16 +69,20 @@ pipx install spectro
 ```
 
 Verify it works:
+
 ```bash
 cd ~/Music
 spectro check test.mp3
 ```
 
 You should see output like:
+
 ```
 test.mp3 seems good [320 kbps].
 ```
+
 or
+
 ```
 test.mp3 is MP3 [320 kbps], but has max frequency about 16780 Hz.
 ```
@@ -101,25 +110,37 @@ cp -r upscale-detector /path/to/your/nicotine/plugins/
 In Nicotine+, go to **Preferences → Plugins → Upscale Detector** to configure:
 
 ### enable_logging
-Enable/disable logging to file and cache (default: enabled)
 
-When enabled, creates:
-- Log files (`spectro_check.log`) alongside audio files or in album folders
-- Cache file (`~/.config/nicotine/upscale_check_cache.json`)
+Enable/disable logging to file (default: enabled)
 
-When disabled, skips both file logging and cache saving.
+When enabled, creates log files (`spectro_check.log`) alongside audio files or in album folders.
+
+When disabled, results only appear in the console.
 
 ### music_directory
+
 Path to your music directory (default: `~/Music`)
 
 This setting is used to distinguish between:
-- Individual files downloaded to your root music directory → creates log file with filename
-- Album folders within your music directory → creates log file with folder name
+
+* Individual files downloaded to your root music directory → creates log file with filename
+* Album folders within your music directory → creates log file with folder name
 
 Set this to match your Nicotine+ downloads folder. For example:
-- `~/Music`
-- `~/Downloads/Music`
-- `/mnt/media/music`
+
+* `~/Music`
+* `~/Downloads/Music`
+* `/mnt/media/music`
+
+### check_delay
+
+Delay in seconds between file checks (default: 2)
+
+Adds a pause between checking files to prevent system overload when multiple large files are queued. Increase this value if your system becomes sluggish during checks.
+
+* Set to `0` for no delay (check files immediately)
+* Set to `5-10` for slower systems or very large audio files
+* Minimum: 0 seconds
 
 ## Usage
 
@@ -132,6 +153,7 @@ Files are automatically checked when downloads complete. Results are logged to t
 When `enable_logging` is enabled, the plugin creates log files with check results:
 
 **For album/folder downloads:**
+
 ```
 ~/Music/2004 - The Grey Album (with Danger Mouse)/
 ├── 01 - Track One.mp3
@@ -140,6 +162,7 @@ When `enable_logging` is enabled, the plugin creates log files with check result
 ```
 
 **For individual file downloads:**
+
 ```
 ~/Music/
 ├── Eric Sneo Live @ Kinki Palace (03-10-07).mp3
@@ -149,9 +172,9 @@ When `enable_logging` is enabled, the plugin creates log files with check result
 Log files are created in the same directory as the audio files and contain check results in this format:
 
 ```
-✓ Upscale Check: [Passed] 01 Track One.mp3 - 320 kbps - frequency spectrum looks good
-✓ Upscale Check: [Passed] 02 Track Two.mp3 - 320 kbps - frequency spectrum looks good
-✗ Upscale Check: [Failed] 03 Track Three.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
+✓ [Passed] 01 Track One.mp3 - 320 kbps - frequency spectrum looks good
+✓ [Passed] 02 Track Two.mp3 - 320 kbps - frequency spectrum looks good
+✗ [Failed] 03 Track Three.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
 ```
 
 ### Console Output
@@ -159,108 +182,120 @@ Log files are created in the same directory as the audio files and contain check
 When a file finishes downloading, you'll see:
 
 ```
-Upscale Detector: ✓[Passed] file.mp3 - 320 kbps - frequency spectrum looks good
+Upscale Detector: ✓ [Passed] file.mp3 - 320 kbps - frequency spectrum looks good
 ```
 
 or
 
 ```
-Upscale Detector: ✗[Failed] file.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
+Upscale Detector: ✗ [Failed] file.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
 ```
 
 ### Status Indicators
 
-- **✓ [Passed]** - File frequency spectrum looks good (genuine file)
-- **✗ [Failed]** - Max frequency is lower than expected (likely upscaled)
-- **- [Skipped]** - Not an audio file (ignored)
-- **! [Error]** - Could not analyze file
-
-### Results Cache
-
-Results are saved to: `~/.config/nicotine/upscale_check_cache.json`
-
-View all previous checks:
-```bash
-cat ~/.config/nicotine/upscale_check_cache.json
-```
+* **✓ [Passed]** - File frequency spectrum looks good (genuine file)
+* **✗ [Failed]** - Max frequency is lower than expected (likely upscaled)
+* **- [Skipped]** - Not an audio file (ignored)
+* **! [Error]** - Could not analyze file
 
 ## Troubleshooting
 
 ### "spectro tool not found"
+
 Make sure you:
+
 1. Installed spectro: `pipx install spectro`
 2. Have pipx installed: `sudo apt install pipx`
 
 Test: `spectro check /path/to/file.mp3`
 
 ### Plugin loads but doesn't check files
-1. Make sure `auto_check` is enabled in plugin settings
-2. Download a new file to trigger the check
-3. Watch the Nicotine+ console for output
+
+1. Download a new file to trigger the check
+2. Watch the Nicotine+ console for output
+3. Check that you see "Worker thread started" when plugin loads
 
 ### All files show "Error"
+
 1. Check that spectro is installed: `spectro check ~/Music/test.mp3`
 2. Check file permissions - plugin must be able to read the files
 3. Ensure audio files aren't corrupted
+4. Check the console for spectro error messages
+
+### System becomes sluggish during checks
+
+1. Increase `check_delay` setting to 5-10 seconds
+2. This adds more time between file checks, reducing CPU/IO load
+3. Particularly helpful when downloading multiple large files
 
 ## Requirements
 
-- **Nicotine+** 3.3.7+
-- **Python** 3.8+
-- **ffmpeg** - for audio file reading
-- **spectro** - for frequency analysis
+* **Nicotine+** 3.3.7+
+* **Python** 3.8+
+* **ffmpeg** - for audio file reading
+* **spectro** - for frequency analysis
 
 ## Performance
 
-- Per-file time: 2-5 seconds
-- CPU usage: Medium (frequency analysis)
-- Accuracy: High (frequency-based detection)
+* Per-file time: 2-5 seconds (varies with file size and system)
+* CPU usage: Medium (frequency analysis is CPU-intensive)
+* Memory usage: Low (single-threaded queue processing)
+* Accuracy: High (frequency-based detection)
 
-Spectro performs FFT (Fast Fourier Transform) analysis on audio, analyzing the actual frequency content to detect upscaling.
+Spectro performs FFT (Fast Fourier Transform) analysis on audio, analyzing the actual frequency content to detect upscaling. The plugin processes files one at a time to prevent system overload.
 
 ## Supported Audio Formats
 
-- MP3 (.mp3)
-- FLAC (.flac)
-- OGG Vorbis (.ogg)
-- M4A (.m4a)
-- AAC (.aac)
-- Opus (.opus)
-- WMA (.wma)
-- ALAC (.alac)
-- Monkey's Audio (.ape)
-- WAV (.wav)
+* MP3 (.mp3)
+* FLAC (.flac)
+* OGG Vorbis (.ogg)
+* M4A (.m4a)
+* AAC (.aac)
+* Opus (.opus)
+* WMA (.wma)
+* ALAC (.alac)
+* Monkey's Audio (.ape)
+* WAV (.wav)
 
 ## Limitations
 
-- Spectro's accuracy depends on audio content - some files may have natural frequency limitations
-- Very short audio files may produce inaccurate results
-- Plugin must have read access to downloaded files
-- Detection is based on frequency analysis and may have edge cases
+* Spectro's accuracy depends on audio content - some files may have natural frequency limitations
+* Very short audio files may produce inaccurate results
+* Plugin must have read access to downloaded files
+* Detection is based on frequency analysis and may have edge cases
+* Large files (100+ MB) take longer to analyze
 
 ## Technical Details
 
 ### How Spectro Works
 
-1. Analyzes the audio file's frequency content
+1. Analyzes the audio file's frequency content using FFT
 2. Determines the maximum frequency present in the audio
 3. Compares against expected frequency range for claimed bitrate:
-   - 64 kbps: ~11 kHz
-   - 96 kbps: ~13 kHz
-   - 128 kbps: ~15 kHz
-   - 192 kbps: ~17 kHz
-   - 256 kbps: ~19 kHz
-   - 320 kbps: ~20 kHz (full spectrum)
-
+   * 64 kbps: ~11 kHz
+   * 96 kbps: ~13 kHz
+   * 128 kbps: ~15 kHz
+   * 192 kbps: ~17 kHz
+   * 256 kbps: ~19 kHz
+   * 320 kbps: ~20 kHz (full spectrum)
 4. Reports "seems good" if frequencies match the claimed bitrate
 5. Reports suspicious max frequency if frequencies are cut off prematurely
 
+### Queue Processing
+
+The plugin uses a thread-safe queue to process files sequentially:
+
+* One persistent worker thread handles all checks
+* Files are queued as downloads complete
+* Configurable delay between checks prevents system overload
+* Thread-safe implementation prevents race conditions
+
 ## Credits
 
-- **Plugin Author**: bez
-- **Frequency Analysis**: [spectro](https://github.com/nschloe/spectro)
-- **Nicotine+**: [Nicotine+ P2P Client](https://nicotine-plus.github.io/nicotine-plus/)
-- **Development Assistance**: Claude (Anthropic)
+* **Plugin Author**: bez
+* **Frequency Analysis**: [spectro](https://github.com/nschloe/spectro)
+* **Nicotine+**: [Nicotine+ P2P Client](https://nicotine-plus.github.io/nicotine-plus/)
+* **Development Assistance**: Claude (Anthropic)
 
 ## License
 
@@ -272,7 +307,7 @@ Issues and pull requests are welcome!
 
 ## Resources
 
-- [Nicotine+ Documentation](https://nicotine-plus.github.io/nicotine-plus/)
-- [spectro GitHub](https://github.com/nschloe/spectro)
-- [FFmpeg Documentation](https://ffmpeg.org/documentation.html)
-- [Audio Bitrate Information](https://en.wikipedia.org/wiki/Bitrate#Audio)
+* [Nicotine+ Documentation](https://nicotine-plus.github.io/nicotine-plus/)
+* [spectro GitHub](https://github.com/nschloe/spectro)
+* [FFmpeg Documentation](https://ffmpeg.org/documentation.html)
+* [Audio Bitrate Information](https://en.wikipedia.org/wiki/Bitrate#Audio)
