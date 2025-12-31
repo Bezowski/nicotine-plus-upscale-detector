@@ -25,7 +25,6 @@ class Plugin(BasePlugin):
         self.settings = {
             'enable_logging': True,
             'music_directory': str(Path.home() / 'Music'),
-            'check_delay': 2,
         }
         
         self.metasettings = {
@@ -36,11 +35,6 @@ class Plugin(BasePlugin):
             'music_directory': {
                 'description': 'Path to your music directory (for individual file logging)',
                 'type': 'str'
-            },
-            'check_delay': {
-                'description': 'Delay in seconds between file checks (prevents system overload)',
-                'type': 'int',
-                'minimum': 0
             },
         }
         
@@ -72,9 +66,8 @@ class Plugin(BasePlugin):
                 # Wait for a file with timeout so we can check stop_event
                 filepath = self.file_queue.get(timeout=1)
                 
-                # Add small delay before checking to ensure file is fully written
-                if self.settings.get('check_delay', 2) > 0:
-                    time.sleep(self.settings['check_delay'])
+                # Add 2 second delay before checking to ensure file is fully written
+                time.sleep(2)
                 
                 # Verify file still exists and is readable
                 if not os.path.exists(filepath):

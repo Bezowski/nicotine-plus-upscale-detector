@@ -132,16 +132,6 @@ Set this to match your Nicotine+ downloads folder. For example:
 * `~/Downloads/Music`
 * `/mnt/media/music`
 
-### check_delay
-
-Delay in seconds between file checks (default: 2)
-
-Adds a pause between checking files to prevent system overload when multiple large files are queued. Increase this value if your system becomes sluggish during checks.
-
-* Set to `0` for no delay (check files immediately)
-* Set to `5-10` for slower systems or very large audio files
-* Minimum: 0 seconds
-
 ## Usage
 
 ### Automatic Checking
@@ -224,9 +214,11 @@ Test: `spectro check /path/to/file.mp3`
 
 ### System becomes sluggish during checks
 
-1. Increase `check_delay` setting to 5-10 seconds
-2. This adds more time between file checks, reducing CPU/IO load
-3. Particularly helpful when downloading multiple large files
+The plugin includes a 2-second delay between file checks to prevent system overload. If you still experience sluggishness:
+
+1. Check system resources with `htop` during file checks
+2. Consider checking large files manually after downloads complete
+3. You can modify the delay in the code: change `time.sleep(2)` to a higher value in `__init__.py`
 
 ## Requirements
 
