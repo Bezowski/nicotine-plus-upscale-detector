@@ -25,6 +25,7 @@ class Plugin(BasePlugin):
         self.settings = {
             'enable_logging': True,
             'music_directory': str(Path.home() / 'Music'),
+            'max_file_size_mb': 150,
         }
         
         self.metasettings = {
@@ -35,6 +36,11 @@ class Plugin(BasePlugin):
             'music_directory': {
                 'description': 'Path to your music directory (for individual file logging)',
                 'type': 'str'
+            },
+            'max_file_size_mb': {
+                'description': 'Skip files larger than this size in MB (0 = no limit)',
+                'type': 'int',
+                'minimum': 0
             },
         }
         
@@ -103,8 +109,8 @@ class Plugin(BasePlugin):
                     log_message = f"{symbol} [{status}] {display_path} - {reason}"
                     self.log(log_message)
                     
-                    # Write to log file (skip skipped files)
-                    if status != 'Skipped':
+                    # Write to log file (skip "skipped" files unless they were skipped due to size)
+                    if status != 'Skipped' or 'too large' in reason:
                         self._write_to_log_file(filepath, f"{symbol} [{status}] {filename} - {reason}")
                 
                 # Mark task as done
@@ -137,6 +143,17 @@ class Plugin(BasePlugin):
         
         if not self._is_audio_file(filepath):
             return {'status': 'Skipped', 'reason': 'Not an audio file', 'timestamp': time.time()}
+        
+        # Check file size limit
+        max_size_mb = self.settings.get('max_file_size_mb', 150)
+        if max_size_mb > 0:
+            file_size_mb = os.path.getsize(filepath) / (1024 * 1024)
+            if file_size_mb > max_size_mb:
+                return {
+                    'status': 'Skipped',
+                    'reason': f'File too large ({file_size_mb:.1f} MB > {max_size_mb} MB limit)',
+                    'timestamp': time.time()
+                }
         
         try:
             result = self._check_with_spectro(filepath)

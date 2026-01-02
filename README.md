@@ -132,6 +132,21 @@ Set this to match your Nicotine+ downloads folder. For example:
 * `~/Downloads/Music`
 * `/mnt/media/music`
 
+### max_file_size_mb
+
+Maximum file size in MB to check (default: 150)
+
+Files larger than this limit will be skipped to prevent system freezes and out-of-memory errors. Large audio files (200+ MB) can cause spectro to consume excessive RAM (17+ GB for a 261 MB file), which can freeze systems or trigger the OOM killer.
+
+* Set to `150` (recommended for most systems with 16 GB RAM or less)
+* Set to `100` for systems with 8 GB RAM or less
+* Set to `0` to disable the limit (not recommended - may cause system freezes)
+
+Most music files are well under this limit:
+* Typical 320 kbps MP3 track (4 minutes): ~10 MB
+* Album (10 tracks): ~100 MB
+* Large DJ mixes and live sets may exceed this limit
+
 ## Usage
 
 ### Automatic Checking
@@ -185,7 +200,7 @@ Upscale Detector: ✗ [Failed] file.mp3 - 320 kbps claimed, but max frequency 16
 
 * **✓ [Passed]** - File frequency spectrum looks good (genuine file)
 * **✗ [Failed]** - Max frequency is lower than expected (likely upscaled)
-* **- [Skipped]** - Not an audio file (ignored)
+* **- [Skipped]** - File too large or not an audio file
 * **! [Error]** - Could not analyze file
 
 ## Troubleshooting
@@ -219,6 +234,20 @@ The plugin includes a 2-second delay between file checks to prevent system overl
 1. Check system resources with `htop` during file checks
 2. Consider checking large files manually after downloads complete
 3. You can modify the delay in the code: change `time.sleep(2)` to a higher value in `__init__.py`
+
+### Large files cause system to freeze or get "Killed"
+
+Spectro can consume excessive memory on very large files (17+ GB RAM for a 261 MB file). The plugin has a default 150 MB file size limit to prevent this:
+
+1. Files over 150 MB are automatically skipped with a log message
+2. Adjust `max_file_size_mb` in plugin settings if needed
+3. You can check large files manually, but be aware they may trigger the OOM killer
+4. To check if OOM killer was triggered: `sudo dmesg | grep -i "out of memory"`
+
+For reference on RAM usage vs file size:
+* 100 MB file: ~10 GB RAM needed
+* 150 MB file: ~13 GB RAM needed (safe for 16 GB systems)
+* 200+ MB files: 15+ GB RAM needed (likely to cause OOM on most systems)
 
 ## Requirements
 
