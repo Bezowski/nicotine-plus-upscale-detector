@@ -203,31 +203,54 @@ class Plugin(BasePlugin):
             # Parse spectro output - join all lines in case output is wrapped
             output_line = ' '.join(result.stdout.strip().split())
             
+            # Check if spectro doesn't support this format
+            if "Don't know what to expect" in output_line or "don't know what to expect" in output_line.lower():
+                return {
+                    'status': 'Skipped',
+                    'reason': 'Format not supported by spectro',
+                    'timestamp': time.time()
+                }
+            
             if 'seems good' in output_line:
-                # Extract bitrate if available
+                # Extract bitrate or format
                 bitrate_match = re.search(r'\[(\d+)\s*kbps\]', output_line)
-                bitrate = bitrate_match.group(1) if bitrate_match else 'unknown'
+                format_match = re.search(r'is\s+(WAV|FLAC|ALAC)', output_line, re.IGNORECASE)
+                
+                if bitrate_match:
+                    bitrate = bitrate_match.group(1)
+                    display = f'{bitrate} kbps'
+                elif format_match:
+                    format_type = format_match.group(1)
+                    display = format_type
+                else:
+                    display = 'unknown format'
                 
                 return {
                     'status': 'Passed',
-                    'bitrate': bitrate,
-                    'reason': f'{bitrate} kbps - frequency spectrum looks good',
+                    'bitrate': display,
+                    'reason': f'{display} - frequency spectrum looks good',
                     'timestamp': time.time()
                 }
             elif 'has max' in output_line and 'frequency' in output_line:
-                # Extract bitrate and frequency
+                # Extract bitrate/format and frequency
                 bitrate_match = re.search(r'\[(\d+)\s*kbps\]', output_line)
-                # Match frequency with or without "about" prefix
+                format_match = re.search(r'is\s+(WAV|FLAC|ALAC)', output_line, re.IGNORECASE)
                 freq_match = re.search(r'(?:about\s+)?(\d+)\s*Hz', output_line)
                 
-                bitrate = bitrate_match.group(1) if bitrate_match else 'unknown'
+                if bitrate_match:
+                    display = f'{bitrate_match.group(1)} kbps'
+                elif format_match:
+                    display = format_match.group(1)
+                else:
+                    display = 'unknown format'
+                
                 frequency = freq_match.group(1) if freq_match else 'unknown'
                 
                 return {
                     'status': 'Failed',
-                    'bitrate': bitrate,
+                    'bitrate': display,
                     'frequency': frequency,
-                    'reason': f'{bitrate} kbps claimed, but max frequency {frequency} Hz - likely upscaled',
+                    'reason': f'{display} claimed, but max frequency {frequency} Hz - likely upscaled',
                     'timestamp': time.time()
                 }
             else:

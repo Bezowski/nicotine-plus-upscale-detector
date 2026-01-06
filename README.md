@@ -6,7 +6,7 @@ Automatically detects upscaled audio files as they download in Nicotine+ using s
 
 * 🎵 Monitors completed downloads for audio file upscaling
 * 📊 Uses **[spectro](https://github.com/nschloe/spectro)** frequency analysis for accurate detection
-* 🔍 Supports multiple audio formats: MP3, FLAC, OGG, M4A, AAC, Opus, WMA, ALAC, APE, WAV
+* 🔍 Supports multiple audio formats: MP3, FLAC, M4A, AAC, Opus, WMA, ALAC, APE, WAV (OGG not supported by spectro)
 * 📝 Clear console logging with status indicators (✓ Passed, ✗ Failed)
 * 📈 Displays detected frequency cutoff for suspicious files
 * ⚡ Efficient single-threaded queue processing to prevent system overload
@@ -267,16 +267,16 @@ Spectro performs FFT (Fast Fourier Transform) analysis on audio, analyzing the a
 
 ## Supported Audio Formats
 
-* MP3 (.mp3)
-* FLAC (.flac)
-* OGG Vorbis (.ogg)
-* M4A (.m4a)
-* AAC (.aac)
-* Opus (.opus)
-* WMA (.wma)
-* ALAC (.alac)
-* Monkey's Audio (.ape)
-* WAV (.wav)
+* MP3 (.mp3) ✓
+* FLAC (.flac) ✓
+* M4A (.m4a) ✓
+* AAC (.aac) ✓
+* Opus (.opus) ✓
+* WMA (.wma) ✓
+* ALAC (.alac) ✓
+* Monkey's Audio (.ape) ✓
+* WAV (.wav) ✓
+* OGG Vorbis (.ogg) ✗ (not supported by spectro - will be skipped)
 
 ## Limitations
 
