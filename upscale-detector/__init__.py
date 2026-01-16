@@ -214,7 +214,7 @@ class Plugin(BasePlugin):
             if 'seems good' in output_line:
                 # Extract bitrate or format
                 bitrate_match = re.search(r'\[(\d+)\s*kbps\]', output_line)
-                format_match = re.search(r'is\s+(WAV|FLAC|ALAC|MP3|AAC|M4A|OGG|OPUS|WMA|APE)', output_line, re.IGNORECASE)
+                format_match = re.search(r'is\s+(WAV|FLAC|ALAC|MP3|AAC|OGG|OPUS|WMA|APE)', output_line, re.IGNORECASE)
                 
                 if bitrate_match:
                     bitrate = bitrate_match.group(1)
@@ -239,7 +239,7 @@ class Plugin(BasePlugin):
             elif 'has max' in output_line and 'frequency' in output_line:
                 # Extract bitrate/format and frequency
                 bitrate_match = re.search(r'\[(\d+)\s*kbps\]', output_line)
-                format_match = re.search(r'is\s+(WAV|FLAC|ALAC|MP3|AAC|M4A|OGG|OPUS|WMA|APE)', output_line, re.IGNORECASE)
+                format_match = re.search(r'is\s+(WAV|FLAC|ALAC|MP3|AAC|OGG|OPUS|WMA|APE)', output_line, re.IGNORECASE)
                 freq_match = re.search(r'(?:about\s+)?(\d+)\s*Hz', output_line)
                 
                 if bitrate_match:
@@ -288,7 +288,7 @@ class Plugin(BasePlugin):
     def _is_audio_file(self, filepath):
         """Check if file is an audio file"""
         audio_extensions = {
-            '.mp3', '.flac', '.ogg', '.m4a', '.aac',
+            '.mp3', '.flac', '.aac',
             '.opus', '.wma', '.alac', '.ape', '.wav'
         }
         return os.path.splitext(filepath)[1].lower() in audio_extensions
