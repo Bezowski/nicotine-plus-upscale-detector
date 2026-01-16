@@ -214,16 +214,21 @@ class Plugin(BasePlugin):
             if 'seems good' in output_line:
                 # Extract bitrate or format
                 bitrate_match = re.search(r'\[(\d+)\s*kbps\]', output_line)
-                format_match = re.search(r'is\s+(WAV|FLAC|ALAC)', output_line, re.IGNORECASE)
+                format_match = re.search(r'is\s+(WAV|FLAC|ALAC|MP3|AAC|M4A|OGG|OPUS|WMA|APE)', output_line, re.IGNORECASE)
                 
                 if bitrate_match:
                     bitrate = bitrate_match.group(1)
                     display = f'{bitrate} kbps'
                 elif format_match:
-                    format_type = format_match.group(1)
+                    format_type = format_match.group(1).upper()
                     display = format_type
                 else:
-                    display = 'unknown format'
+                    # No format in output - infer from filename
+                    ext = os.path.splitext(filepath)[1].lower().replace('.', '').upper()
+                    if ext in ['FLAC', 'WAV', 'ALAC', 'APE']:
+                        display = ext
+                    else:
+                        display = 'unknown format'
                 
                 return {
                     'status': 'Passed',
@@ -234,15 +239,20 @@ class Plugin(BasePlugin):
             elif 'has max' in output_line and 'frequency' in output_line:
                 # Extract bitrate/format and frequency
                 bitrate_match = re.search(r'\[(\d+)\s*kbps\]', output_line)
-                format_match = re.search(r'is\s+(WAV|FLAC|ALAC)', output_line, re.IGNORECASE)
+                format_match = re.search(r'is\s+(WAV|FLAC|ALAC|MP3|AAC|M4A|OGG|OPUS|WMA|APE)', output_line, re.IGNORECASE)
                 freq_match = re.search(r'(?:about\s+)?(\d+)\s*Hz', output_line)
                 
                 if bitrate_match:
                     display = f'{bitrate_match.group(1)} kbps'
                 elif format_match:
-                    display = format_match.group(1)
+                    display = format_match.group(1).upper()
                 else:
-                    display = 'unknown format'
+                    # Infer from filename extension
+                    ext = os.path.splitext(filepath)[1].lower().replace('.', '').upper()
+                    if ext in ['FLAC', 'WAV', 'ALAC', 'APE']:
+                        display = ext
+                    else:
+                        display = 'unknown format'
                 
                 frequency = freq_match.group(1) if freq_match else 'unknown'
                 
