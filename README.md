@@ -109,7 +109,9 @@ cp -r upscale-detector /path/to/your/nicotine/plugins/
 
 In Nicotine+, go to **Preferences → Plugins → Upscale Detector** to configure:
 
-### enable_logging
+### Enable Logging
+
+Setting name: `enable_logging`
 
 Enable/disable logging to file (default: enabled)
 
@@ -117,7 +119,9 @@ When enabled, creates log files (`spectro_check.log`) alongside audio files or i
 
 When disabled, results only appear in the console.
 
-### music_directory
+### Music Directory
+
+Setting name: `music_directory`
 
 Path to your music directory (default: `~/Music`)
 
@@ -132,7 +136,9 @@ Set this to match your Nicotine+ downloads folder. For example:
 * `~/Downloads/Music`
 * `/mnt/media/music`
 
-### max_file_size_mb
+### Maximum File Size
+
+Setting name: `max_file_size_mb`
 
 Maximum file size in MB to check (default: 150)
 
