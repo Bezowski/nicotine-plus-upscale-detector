@@ -187,12 +187,23 @@ class Plugin(BasePlugin):
             
             # Run spectro on the file with resource limits
             cmd = ['spectro', 'check', filename]
-            result = subprocess.run(
-                cmd, 
-                capture_output=True, 
-                text=True, 
-                timeout=60
-            )
+
+            # On Windows, hide console window
+            if os.name == 'nt':
+                result = subprocess.run(
+                    cmd, 
+                    capture_output=True, 
+                    text=True, 
+                    timeout=60,
+                    creationflags=0x08000000  # CREATE_NO_WINDOW
+                )
+            else:
+                result = subprocess.run(
+                    cmd, 
+                    capture_output=True, 
+                    text=True, 
+                    timeout=60
+                )
             
             if result.returncode != 0:
                 # Log stderr if spectro failed
