@@ -193,16 +193,16 @@ When enabled, creates log files (`spectro_check.log`) alongside audio files or i
 
 When disabled, results only appear in the console.
 
-### Music Directory
+### Downloads Directory
 
-Path to your music directory (default: `~/Music`)
+Path to your downloads directory (default: `~/Music`)
 
 This setting is used to distinguish between:
 
 * Individual files downloaded to your root music directory → creates log file with filename
 * Album folders within your music directory → creates log file with folder name
 
-Set this to match your Nicotine+ downloads folder. For example:
+Set this to match your Nicotine+ finished downloads folder. For example:
 
 * `~/Music`
 * `~/Downloads/Music`
