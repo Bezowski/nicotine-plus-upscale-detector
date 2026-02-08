@@ -49,13 +49,15 @@ Result: ✗ FAILED - max frequency 16780 Hz detected
 
 ## Installation
 
-### 1. Install ffmpeg (For audio reading)
+### Linux
+
+#### 1. Install ffmpeg (For audio reading)
 
 ```bash
 sudo apt install ffmpeg
 ```
 
-### 2. Install spectro (Required)
+#### 2. Install spectro (Required)
 
 ```bash
 pipx install spectro
@@ -89,7 +91,7 @@ test.mp3 is MP3 [320 kbps], but has max frequency about 16780 Hz.
 
 **Note:** spectro must be run from the same directory as the audio file when checking individual files.
 
-### 3. Install the Plugin
+#### 3. Install the Plugin
 
 ```bash
 # Copy the plugin to Nicotine+ plugins directory
@@ -99,11 +101,85 @@ cp -r upscale-detector ~/.local/share/nicotine/plugins/
 cp -r upscale-detector /path/to/your/nicotine/plugins/
 ```
 
-### 4. Enable the Plugin
+#### 4. Enable the Plugin
 
 1. Start Nicotine+
 2. Go to **Preferences → Plugins**
 3. Click the checkbox next to **Upscale Detector** to enable it
+
+### Windows
+
+#### 1. Install FFmpeg
+
+```powershell
+# Using winget (Windows Package Manager)
+winget install ffmpeg
+
+# Restart PowerShell after installation
+```
+
+Verify it works:
+
+```powershell
+ffmpeg -version
+```
+
+#### 2. Install Python (if not already installed)
+
+```powershell
+winget install Python.Python.3.12
+
+# Restart PowerShell after installation
+```
+
+#### 3. Install pipx and spectro
+
+```powershell
+# Install pipx
+pip install pipx
+
+# Add pipx to PATH permanently
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";$env:USERPROFILE\.local\bin", "User")
+
+# Restart PowerShell
+
+# Install spectro
+pipx install spectro
+
+# Verify it works
+spectro --version
+```
+
+Test spectro on a music file:
+
+```powershell
+cd "C:\Users\YourUsername\Music"
+spectro check "song.mp3"
+```
+
+#### 4. Install the Plugin
+
+**Option 1: Download from GitHub**
+1. Download the latest release from: https://github.com/Bezowski/nicotine-plus-upscale-detector/releases
+2. Extract the ZIP file
+3. Copy the `upscale-detector` folder to: `C:\Users\YourUsername\AppData\Roaming\nicotine\plugins\`
+
+**Option 2: Use PowerShell**
+```powershell
+# Download and extract
+cd $env:USERPROFILE\Downloads
+Invoke-WebRequest -Uri "https://github.com/Bezowski/nicotine-plus-upscale-detector/archive/refs/heads/main.zip" -OutFile "upscale-detector.zip"
+Expand-Archive -Path "upscale-detector.zip" -DestinationPath "."
+
+# Copy to plugins directory
+Copy-Item -Path ".\nicotine-plus-upscale-detector-main\upscale-detector" -Destination "$env:APPDATA\nicotine\plugins\" -Recurse
+```
+
+#### 5. Enable the Plugin
+
+1. Start (or restart) Nicotine+
+2. Go to **Preferences → Plugins**
+3. Check the box next to **Upscale Detector** to enable it
 
 ## Configuration
 
@@ -255,6 +331,10 @@ For reference on RAM usage vs file size:
 * **Python** 3.8+
 * **ffmpeg** - for audio file reading
 * **spectro** - for frequency analysis
+
+**Supported Platforms:**
+- Linux (tested)
+- Windows 11 (tested)
 
 ## Performance
 
