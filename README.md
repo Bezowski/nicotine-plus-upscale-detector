@@ -193,7 +193,7 @@ When enabled, creates log files (`spectro_check.log`) alongside audio files or i
 
 When disabled, results only appear in the console.
 
-### Downloads Directory
+### Music Directory
 
 Path to your downloads directory (default: `~/Music`)
 
