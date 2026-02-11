@@ -185,29 +185,41 @@ class Plugin(BasePlugin):
             # Change to file directory
             os.chdir(file_dir)
             
-            # Run spectro on the file with resource limits
+            # Run spectro on the file
             cmd = ['spectro', 'check', filename]
-
-            # On Windows, hide console window
+            
+            # On Windows, hide console window and handle encoding
             if os.name == 'nt':
                 result = subprocess.run(
-                    cmd, 
-                    capture_output=True, 
-                    text=True, 
+                    cmd,
+                    capture_output=True,
+                    text=True,
                     timeout=60,
-                    creationflags=0x08000000  # CREATE_NO_WINDOW
+                    creationflags=0x08000000,
+                    encoding='utf-8',
+                    errors='replace'
                 )
             else:
                 result = subprocess.run(
-                    cmd, 
-                    capture_output=True, 
-                    text=True, 
+                    cmd,
+                    capture_output=True,
+                    text=True,
                     timeout=60
                 )
             
             if result.returncode != 0:
                 # Log stderr if spectro failed
                 error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                
+                # On Windows, spectro can crash with unicode filenames - detect this
+                if 'UnicodeEncodeError' in error_msg or 'charmap' in error_msg:
+                    self.log(f"spectro failed for {filename}: Unicode encoding error (Windows limitation)")
+                    return {
+                        'status': 'Error',
+                        'reason': 'Filename contains unsupported characters (Windows)',
+                        'timestamp': time.time()
+                    }
+                
                 self.log(f"spectro failed for {filename}: {error_msg}")
                 return None
             
