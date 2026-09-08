@@ -327,6 +327,7 @@ For reference on RAM usage vs file size:
 
 ## Requirements
 
+* **Upscale Detector** v1.0.3
 * **Nicotine+** 3.3.7+
 * **Python** 3.8+
 * **ffmpeg** - for audio file reading
