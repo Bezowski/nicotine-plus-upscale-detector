@@ -47,6 +47,7 @@ class Plugin(BasePlugin):
         self.file_queue = queue.Queue()
         self.worker_thread = None
         self.stop_event = threading.Event()
+        self._current_proc = None
         
         self.log("Upscale Detector initialized")
         
@@ -71,57 +72,53 @@ class Plugin(BasePlugin):
             try:
                 # Wait for a file with timeout so we can check stop_event
                 filepath = self.file_queue.get(timeout=1)
-                
-                # Add 2 second delay before checking to ensure file is fully written
-                time.sleep(2)
-                
-                # Verify file still exists and is readable
-                if not os.path.exists(filepath):
-                    self.log(f"File disappeared before check: {os.path.basename(filepath)}")
-                    self.file_queue.task_done()
-                    continue
-                
-                if not os.access(filepath, os.R_OK):
-                    self.log(f"File not readable: {os.path.basename(filepath)}")
-                    self.file_queue.task_done()
-                    continue
-                
-                # Process the file
-                result = self._check_file(filepath)
-                if result:
-                    status = result.get('status', 'Unknown')
-                    reason = result.get('reason', '')
-                    filename = os.path.basename(filepath)
-                    file_dir = os.path.dirname(filepath)
-                    
-                    # Get parent folder name for display
-                    parent_dir = os.path.basename(file_dir) if file_dir else ''
-                    display_path = f"{parent_dir}/{filename}" if parent_dir else filename
-                    
-                    if status == 'Passed':
-                        symbol = "✓"
-                    elif status == 'Failed':
-                        symbol = "✗"
-                    else:
-                        symbol = "!"
-                    
-                    # Log result with folder/filename path
-                    log_message = f"{symbol} [{status}] {display_path} - {reason}"
-                    self.log(log_message)
-                    
-                    # Write to log file (skip "skipped" files unless they were skipped due to size)
-                    if status != 'Skipped' or 'too large' in reason:
-                        self._write_to_log_file(filepath, f"{symbol} [{status}] {filename} - {reason}")
-                
-                # Mark task as done
-                self.file_queue.task_done()
-                
             except queue.Empty:
                 # No files to process right now, loop will continue
                 continue
+
+            try:
+                # Add 2 second delay before checking to ensure file is fully written
+                time.sleep(2)
+
+                # Verify file still exists and is readable
+                if not os.path.exists(filepath):
+                    self.log(f"File disappeared before check: {os.path.basename(filepath)}")
+                elif not os.access(filepath, os.R_OK):
+                    self.log(f"File not readable: {os.path.basename(filepath)}")
+                else:
+                    # Process the file
+                    result = self._check_file(filepath)
+                    if result:
+                        status = result.get('status', 'Unknown')
+                        reason = result.get('reason', '')
+                        filename = os.path.basename(filepath)
+                        file_dir = os.path.dirname(filepath)
+
+                        # Get parent folder name for display
+                        parent_dir = os.path.basename(file_dir) if file_dir else ''
+                        display_path = f"{parent_dir}/{filename}" if parent_dir else filename
+
+                        if status == 'Passed':
+                            symbol = "✓"
+                        elif status == 'Failed':
+                            symbol = "✗"
+                        else:
+                            symbol = "!"
+
+                        # Log result with folder/filename path
+                        log_message = f"{symbol} [{status}] {display_path} - {reason}"
+                        self.log(log_message)
+
+                        # Write to log file (skip "skipped" files unless they were skipped due to size)
+                        if status != 'Skipped' or 'too large' in reason:
+                            self._write_to_log_file(filepath, f"{symbol} [{status}] {filename} - {reason}")
+
             except Exception as e:
                 self.log(f"Worker thread error: {e}")
                 # Continue processing other files even if one fails
+            finally:
+                # Mark task as done exactly once per dequeued item
+                self.file_queue.task_done()
     
     def download_finished_notification(self, user, virtual_path, real_path):
         """Called when a file download completes"""
@@ -173,43 +170,43 @@ class Plugin(BasePlugin):
     
     def _check_with_spectro(self, filepath):
         """Use spectro for frequency analysis of individual files"""
-        original_dir = None
         try:
             # Get directory and filename
             file_dir = os.path.dirname(filepath)
             filename = os.path.basename(filepath)
-            
-            # Save current directory
-            original_dir = os.getcwd()
-            
-            # Change to file directory
-            os.chdir(file_dir)
-            
-            # Run spectro on the file
+
+            # Run spectro from the file's own directory (spectro requires this).
+            # Pass it as the subprocess cwd rather than calling os.chdir, so the
+            # working directory of the host Nicotine+ process is never mutated.
             cmd = ['spectro', 'check', filename]
-            
-            # On Windows, hide console window and handle encoding
+            popen_kwargs = {
+                'cwd': file_dir or None,
+                'stdout': subprocess.PIPE,
+                'stderr': subprocess.PIPE,
+                'text': True,
+            }
+
+            # On Windows, hide the console window and force UTF-8 decoding
             if os.name == 'nt':
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                    creationflags=0x08000000,
-                    encoding='utf-8',
-                    errors='replace'
-                )
-            else:
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=60
-                )
-            
-            if result.returncode != 0:
+                popen_kwargs['creationflags'] = 0x08000000
+                popen_kwargs['encoding'] = 'utf-8'
+                popen_kwargs['errors'] = 'replace'
+
+            proc = subprocess.Popen(cmd, **popen_kwargs)
+            self._current_proc = proc
+            try:
+                stdout, stderr = proc.communicate(timeout=60)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.communicate()
+                raise
+            finally:
+                self._current_proc = None
+            returncode = proc.returncode
+
+            if returncode != 0:
                 # Log stderr if spectro failed
-                error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                error_msg = stderr.strip() if stderr else "Unknown error"
                 
                 # On Windows, spectro can crash with unicode filenames - detect this
                 if 'UnicodeEncodeError' in error_msg or 'charmap' in error_msg:
@@ -224,7 +221,7 @@ class Plugin(BasePlugin):
                 return None
             
             # Parse spectro output - join all lines in case output is wrapped
-            output_line = ' '.join(result.stdout.strip().split())
+            output_line = ' '.join(stdout.strip().split())
             
             # Check if spectro doesn't support this format
             if "Don't know what to expect" in output_line or "don't know what to expect" in output_line.lower():
@@ -287,10 +284,16 @@ class Plugin(BasePlugin):
                     'timestamp': time.time()
                 }
             else:
-                # Output doesn't match expected format
+                # Output doesn't match any known spectro verdict - record it as an
+                # error carrying the raw text instead of silently dropping the check
+                snippet = output_line if len(output_line) <= 200 else output_line[:200] + '...'
                 self.log(f"Unexpected spectro output for {filename}: {output_line}")
-                return None
-            
+                return {
+                    'status': 'Error',
+                    'reason': f'Unrecognized spectro output: {snippet}',
+                    'timestamp': time.time()
+                }
+
         except FileNotFoundError:
             self.log("spectro tool not found. Install: pipx install spectro")
             return None
@@ -300,13 +303,6 @@ class Plugin(BasePlugin):
         except Exception as e:
             self.log(f"Error with spectro for {os.path.basename(filepath)}: {e}")
             return None
-        finally:
-            # Always restore directory
-            if original_dir:
-                try:
-                    os.chdir(original_dir)
-                except Exception as e:
-                    self.log(f"Warning: Could not restore directory: {e}")
     
     def _is_audio_file(self, filepath):
         """Check if file is an audio file that spectro can analyze"""
@@ -343,7 +339,7 @@ class Plugin(BasePlugin):
                 log_path = os.path.join(file_dir, log_filename)
             
             # Write to log file (append mode)
-            with open(log_path, 'a') as log_file:
+            with open(log_path, 'a', encoding='utf-8') as log_file:
                 log_file.write(log_message + '\n')
                 
         except Exception as e:
@@ -355,7 +351,16 @@ class Plugin(BasePlugin):
         
         # Signal the worker to stop
         self.stop_event.set()
-        
+
+        # Kill any spectro process the worker is currently blocked on so disable
+        # doesn't hang for up to the full subprocess timeout
+        proc = self._current_proc
+        if proc is not None and proc.poll() is None:
+            try:
+                proc.kill()
+            except Exception as e:
+                self.log(f"Could not stop running spectro process: {e}")
+
         # Wait for worker to finish current task
         if self.worker_thread and self.worker_thread.is_alive():
             self.worker_thread.join(timeout=10)
