@@ -139,14 +139,16 @@ class Plugin(BasePlugin):
         display_path = f"{parent_dir}/{filename}" if parent_dir else filename
         symbol = self._SYMBOLS.get(status, '!')
 
-        self.log(f"{symbol} [{status}] {display_path} - {reason}")
+        # A failed check gets a "⚠" prefix so it stands out in a busy log,
+        # rather than a separate duplicate line
+        prefix = '⚠ ' if status == 'Failed' else ''
+        self.log(f"{prefix}{symbol} [{status}] {display_path} - {reason}")
 
         # Write to log file (skip "not an audio file" skips, keep size skips)
         if status != 'Skipped' or 'too large' in reason:
-            self._write_to_log_file(filepath, f"{symbol} [{status}] {filename} - {reason}")
+            self._write_to_log_file(filepath, f"{prefix}{symbol} [{status}] {filename} - {reason}")
 
         if status == 'Failed':
-            self.log(f"⚠ UPSCALE DETECTED: {display_path} - {reason}")
             self._notify(f"Likely upscaled: {display_path}\n{reason}")
 
         # Accumulate for the per-folder batch summary

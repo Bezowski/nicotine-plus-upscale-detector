@@ -289,7 +289,7 @@ appended history rather than an ambiguous mix of old and new results:
 ```
 [2026-02-14 21:03:11] ✓ [Passed] 01 Track One.mp3 - 320 kbps - frequency spectrum looks good
 [2026-02-14 21:03:14] ✓ [Passed] 02 Track Two.mp3 - 320 kbps - frequency spectrum looks good
-[2026-02-14 21:03:18] ✗ [Failed] 03 Track Three.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
+[2026-02-14 21:03:18] ⚠ ✗ [Failed] 03 Track Three.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
 ```
 
 ### Console Output
@@ -300,12 +300,11 @@ When a file finishes downloading, you'll see:
 Upscale Detector: ✓ [Passed] file.mp3 - 320 kbps - frequency spectrum looks good
 ```
 
-or, for a likely upscale, an extra prominent line (and a Nicotine+ notification
-unless disabled):
+or, for a likely upscale, a line prefixed with `⚠` so it stands out (plus a
+Nicotine+ notification unless disabled):
 
 ```
-Upscale Detector: ✗ [Failed] file.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
-Upscale Detector: ⚠ UPSCALE DETECTED: file.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
+Upscale Detector: ⚠ ✗ [Failed] file.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
 ```
 
 Once a folder's downloads finish, a summary line follows (see **Batch Summary**):
@@ -369,7 +368,7 @@ For reference on RAM usage vs file size:
 
 ## Requirements
 
-* **Upscale Detector** v1.1.0
+* **Upscale Detector** v1.1.1
 * **Nicotine+** 3.3.7+
 * **Python** 3.8+
 * **ffmpeg** - for audio file reading
