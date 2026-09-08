@@ -17,6 +17,7 @@ from pynicotine.pluginsystem import BasePlugin
 # rather than as plugin settings to avoid cluttering the preferences panel.
 CHECK_DELAY_SECONDS = 2       # pause before each check: lets the file settle, throttles load
 SPECTRO_TIMEOUT_SECONDS = 60  # give up on a single spectro analysis after this long
+SUMMARY_QUIET_SECONDS = 60    # emit a folder's batch summary once no new file has arrived for this long
 
 
 class Plugin(BasePlugin):
@@ -145,25 +146,39 @@ class Plugin(BasePlugin):
 
         # Accumulate for the per-folder batch summary
         tally = self._pending.setdefault(
-            file_dir, {'Passed': 0, 'Failed': 0, 'Skipped': 0, 'Error': 0, 'failed': []}
+            file_dir,
+            {'Passed': 0, 'Failed': 0, 'Skipped': 0, 'Error': 0, 'failed': [], 'last_seen': 0.0},
         )
         tally[status] = tally.get(status, 0) + 1
+        tally['last_seen'] = time.time()
         if status == 'Failed':
             tally['failed'].append(filename)
 
-    def _flush_summaries(self):
-        """Emit a one-line summary per folder that saw 2+ files in this batch"""
+    def _flush_summaries(self, force=False):
+        """Emit a per-folder summary once that folder has gone quiet.
+
+        Runs on every idle tick. A folder is only summarised (and dropped) once
+        no new file has arrived for SUMMARY_QUIET_SECONDS, so an album that
+        downloads track by track still accumulates into a single summary rather
+        than being discarded one file at a time. `force` flushes everything
+        regardless (used on disable).
+        """
         if not self._pending:
             return
 
-        pending, self._pending = self._pending, {}
-        if not self.settings.get('batch_summary', True):
-            return
-
+        now = time.time()
+        enabled = self.settings.get('batch_summary', True)
         music_dir = os.path.expanduser(self.settings['music_directory'])
-        for file_dir, tally in pending.items():
+
+        for file_dir in list(self._pending):
+            tally = self._pending[file_dir]
+            if not force and now - tally['last_seen'] < SUMMARY_QUIET_SECONDS:
+                continue  # folder still active - wait for it to settle
+
+            del self._pending[file_dir]
+
             total = tally['Passed'] + tally['Failed'] + tally['Skipped'] + tally['Error']
-            if total < 2:
+            if total < 2 or not enabled:
                 continue  # single files already have their own result line
 
             folder = os.path.basename(file_dir) or file_dir
@@ -457,6 +472,6 @@ class Plugin(BasePlugin):
                 self.log("Worker thread stopped")
 
         # Emit a summary for whatever the worker managed to check before stopping
-        self._flush_summaries()
+        self._flush_summaries(force=True)
 
         self.log("Upscale Detector disabled")

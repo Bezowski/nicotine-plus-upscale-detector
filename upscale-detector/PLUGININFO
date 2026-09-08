@@ -1,4 +1,4 @@
-Version="1.1.1"
+Version="1.1.2"
 Authors=['bez']
 Name="Upscale Detector"
 Description="Automatically detects upscaled audio files as they download using spectrum frequency analysis. Supports audio formats: MP3, FLAC, WAV"

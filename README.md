@@ -235,10 +235,13 @@ notification settings and version.
 
 Log a one-line per-folder summary once a batch of downloads finishes (default: enabled)
 
-After an album's files have all been checked, a line like
+Roughly a minute after the last file in a folder is checked (once that folder
+has gone quiet), a line like
 `Summary [Album Name]: 9 passed, 1 failed - likely upscaled: 03 Track.mp3` is
-logged (and appended to the album's log file). Folders with only one checked
-file are not summarised.
+logged and appended to the album's log file. The delay lets a track-by-track
+album download accumulate into a single summary. Folders with only one checked
+file are not summarised. If a slow download keeps a folder busy for a long
+time, you may get more than one partial summary for it.
 
 ## Usage
 
@@ -357,7 +360,7 @@ For reference on RAM usage vs file size:
 
 ## Requirements
 
-* **Upscale Detector** v1.1.1
+* **Upscale Detector** v1.1.2
 * **Nicotine+** 3.3.7+
 * **Python** 3.8+
 * **ffmpeg** - for audio file reading
