@@ -17,7 +17,6 @@ from pynicotine.pluginsystem import BasePlugin
 # rather than as plugin settings to avoid cluttering the preferences panel.
 CHECK_DELAY_SECONDS = 2       # pause before each check: lets the file settle, throttles load
 SPECTRO_TIMEOUT_SECONDS = 60  # give up on a single spectro analysis after this long
-SUMMARY_QUIET_SECONDS = 60    # emit a folder's batch summary once no new file has arrived for this long
 
 
 class Plugin(BasePlugin):
@@ -33,7 +32,6 @@ class Plugin(BasePlugin):
             'music_directory': str(Path.home() / 'Music'),
             'max_file_size_mb': 150,
             'notify_on_failure': True,
-            'batch_summary': True,
         }
 
         self.metasettings = {
@@ -54,18 +52,12 @@ class Plugin(BasePlugin):
                 'description': 'Show a Nicotine+ notification when a likely upscale is found',
                 'type': 'bool'
             },
-            'batch_summary': {
-                'description': 'Log a per-folder summary once a batch of downloads finishes',
-                'type': 'bool'
-            },
         }
 
         self.file_queue = queue.Queue()
         self.worker_thread = None
         self.stop_event = threading.Event()
         self._current_proc = None
-        # Per-directory result tallies awaiting a batch summary, keyed by dir path
-        self._pending = {}
         
         self.log("Upscale Detector initialized")
         
@@ -91,8 +83,7 @@ class Plugin(BasePlugin):
                 # Wait for a file with timeout so we can check stop_event
                 filepath = self.file_queue.get(timeout=1)
             except queue.Empty:
-                # Queue drained for now - flush any pending batch summaries
-                self._flush_summaries()
+                # Nothing to process right now
                 continue
 
             try:
@@ -122,7 +113,7 @@ class Plugin(BasePlugin):
     _SYMBOLS = {'Passed': '✓', 'Failed': '✗', 'Skipped': '-'}
 
     def _report_result(self, filepath, result):
-        """Log one check result and fold it into the pending batch summary"""
+        """Log one check result to the console and the log file"""
         status = result.get('status', 'Unknown')
         reason = result.get('reason', '')
         filename = os.path.basename(filepath)
@@ -143,69 +134,6 @@ class Plugin(BasePlugin):
 
         if status == 'Failed':
             self._notify(f"Likely upscaled: {display_path}\n{reason}")
-
-        # Accumulate for the per-folder batch summary
-        tally = self._pending.setdefault(
-            file_dir,
-            {'Passed': 0, 'Failed': 0, 'Skipped': 0, 'Error': 0, 'failed': [], 'last_seen': 0.0},
-        )
-        tally[status] = tally.get(status, 0) + 1
-        tally['last_seen'] = time.time()
-        if status == 'Failed':
-            tally['failed'].append(filename)
-
-    def _flush_summaries(self, force=False):
-        """Emit a per-folder summary once that folder has gone quiet.
-
-        Runs on every idle tick. A folder is only summarised (and dropped) once
-        no new file has arrived for SUMMARY_QUIET_SECONDS, so an album that
-        downloads track by track still accumulates into a single summary rather
-        than being discarded one file at a time. `force` flushes everything
-        regardless (used on disable).
-        """
-        if not self._pending:
-            return
-
-        now = time.time()
-        enabled = self.settings.get('batch_summary', True)
-        music_dir = os.path.expanduser(self.settings['music_directory'])
-
-        for file_dir in list(self._pending):
-            tally = self._pending[file_dir]
-            if not force and now - tally['last_seen'] < SUMMARY_QUIET_SECONDS:
-                continue  # folder still active - wait for it to settle
-
-            del self._pending[file_dir]
-
-            total = tally['Passed'] + tally['Failed'] + tally['Skipped'] + tally['Error']
-            if total < 2 or not enabled:
-                continue  # single files already have their own result line
-
-            folder = os.path.basename(file_dir) or file_dir
-            parts = [f"{tally['Passed']} passed", f"{tally['Failed']} failed"]
-            if tally['Skipped']:
-                parts.append(f"{tally['Skipped']} skipped")
-            if tally['Error']:
-                parts.append(f"{tally['Error']} error" + ('s' if tally['Error'] != 1 else ''))
-
-            summary = f"Summary [{folder}]: " + ", ".join(parts)
-            if tally['failed']:
-                summary += " - likely upscaled: " + ", ".join(tally['failed'])
-
-            self.log(summary)
-
-            # Anchor the summary in an album folder's own log (not the root dir,
-            # where each file keeps its own separate log)
-            if file_dir != music_dir:
-                self._append_log(
-                    os.path.join(file_dir, f"{folder} - spectro_check.log"), summary
-                )
-
-            if tally['failed']:
-                self._notify(
-                    f"{folder}: {len(tally['failed'])} likely upscaled\n"
-                    + "\n".join(tally['failed'])
-                )
 
     def _notify(self, message):
         """Best-effort Nicotine+ notification; the log line is the real record"""
@@ -470,8 +398,5 @@ class Plugin(BasePlugin):
                 self.log("Warning: Worker thread did not stop cleanly")
             else:
                 self.log("Worker thread stopped")
-
-        # Emit a summary for whatever the worker managed to check before stopping
-        self._flush_summaries(force=True)
 
         self.log("Upscale Detector disabled")

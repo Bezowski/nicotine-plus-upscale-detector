@@ -231,18 +231,6 @@ The console/log line is always written regardless; this adds a harder-to-miss
 popup. Whether a desktop notification actually appears depends on your Nicotine+
 notification settings and version.
 
-### Batch Summary
-
-Log a one-line per-folder summary once a batch of downloads finishes (default: enabled)
-
-Roughly a minute after the last file in a folder is checked (once that folder
-has gone quiet), a line like
-`Summary [Album Name]: 9 passed, 1 failed - likely upscaled: 03 Track.mp3` is
-logged and appended to the album's log file. The delay lets a track-by-track
-album download accumulate into a single summary. Folders with only one checked
-file are not summarised. If a slow download keeps a folder busy for a long
-time, you may get more than one partial summary for it.
-
 ## Usage
 
 ### Automatic Checking
@@ -293,12 +281,6 @@ Nicotine+ notification unless disabled):
 
 ```
 Upscale Detector: ⚠ ✗ [Failed] file.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
-```
-
-Once a folder's downloads finish, a summary line follows (see **Batch Summary**):
-
-```
-Upscale Detector: Summary [Album Name]: 9 passed, 1 failed - likely upscaled: 03 Track Three.mp3
 ```
 
 ### Status Indicators
