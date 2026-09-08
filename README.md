@@ -223,6 +223,38 @@ Most music files are well under this limit:
 * Album (10 tracks): ~100 MB
 * Large DJ mixes and live sets may exceed this limit
 
+### Check Delay (seconds)
+
+Seconds to wait before analysing each file (default: 2)
+
+The delay lets the download finish flushing to disk and throttles load, since
+spectro is CPU- and RAM-intensive. Raise it if your system stays sluggish while
+checks run; set to `0` for no delay.
+
+### Spectro Timeout (seconds)
+
+Give up on a single spectro analysis after this many seconds (default: 60)
+
+Raise it if large files near the size limit are being reported as errors because
+the analysis didn't finish in time.
+
+### Notify on Failure
+
+Show a Nicotine+ notification when a likely upscale is found (default: enabled)
+
+The console/log line is always written regardless; this adds a harder-to-miss
+popup. Whether a desktop notification actually appears depends on your Nicotine+
+notification settings and version.
+
+### Batch Summary
+
+Log a one-line per-folder summary once a batch of downloads finishes (default: enabled)
+
+After an album's files have all been checked, a line like
+`Summary [Album Name]: 9 passed, 1 failed - likely upscaled: 03 Track.mp3` is
+logged (and appended to the album's log file). Folders with only one checked
+file are not summarised.
+
 ## Usage
 
 ### Automatic Checking
@@ -268,10 +300,18 @@ When a file finishes downloading, you'll see:
 Upscale Detector: ✓ [Passed] file.mp3 - 320 kbps - frequency spectrum looks good
 ```
 
-or
+or, for a likely upscale, an extra prominent line (and a Nicotine+ notification
+unless disabled):
 
 ```
 Upscale Detector: ✗ [Failed] file.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
+Upscale Detector: ⚠ UPSCALE DETECTED: file.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
+```
+
+Once a folder's downloads finish, a summary line follows (see **Batch Summary**):
+
+```
+Upscale Detector: Summary [Album Name]: 9 passed, 1 failed - likely upscaled: 03 Track Three.mp3
 ```
 
 ### Status Indicators
@@ -307,11 +347,11 @@ Test: `spectro check /path/to/file.mp3`
 
 ### System becomes sluggish during checks
 
-The plugin includes a 2-second delay between file checks to prevent system overload. If you still experience sluggishness:
+The plugin waits a configurable delay (default 2 seconds) before each file check to prevent system overload. If you still experience sluggishness:
 
 1. Check system resources with `htop` during file checks
 2. Consider checking large files manually after downloads complete
-3. You can modify the delay in the code: change `time.sleep(2)` to a higher value in `__init__.py`
+3. Raise **Check Delay (seconds)** in the plugin settings
 
 ### Large files cause system to freeze or get "Killed"
 
@@ -329,7 +369,7 @@ For reference on RAM usage vs file size:
 
 ## Requirements
 
-* **Upscale Detector** v1.0.3
+* **Upscale Detector** v1.1.0
 * **Nicotine+** 3.3.7+
 * **Python** 3.8+
 * **ffmpeg** - for audio file reading

@@ -4,7 +4,6 @@ Detects upscaled audio files after download using spectro frequency analysis
 """
 
 import os
-import json
 import subprocess
 import threading
 import queue
@@ -27,8 +26,12 @@ class Plugin(BasePlugin):
             'enable_logging': True,
             'music_directory': str(Path.home() / 'Music'),
             'max_file_size_mb': 150,
+            'check_delay_seconds': 2,
+            'spectro_timeout_seconds': 60,
+            'notify_on_failure': True,
+            'batch_summary': True,
         }
-        
+
         self.metasettings = {
             'enable_logging': {
                 'description': 'Enable logging to file (spectro_check.log)',
@@ -43,12 +46,32 @@ class Plugin(BasePlugin):
                 'type': 'int',
                 'minimum': 0
             },
+            'check_delay_seconds': {
+                'description': 'Seconds to wait before checking each file (throttles load)',
+                'type': 'int',
+                'minimum': 0
+            },
+            'spectro_timeout_seconds': {
+                'description': 'Give up on a spectro analysis after this many seconds',
+                'type': 'int',
+                'minimum': 5
+            },
+            'notify_on_failure': {
+                'description': 'Show a Nicotine+ notification when a likely upscale is found',
+                'type': 'bool'
+            },
+            'batch_summary': {
+                'description': 'Log a per-folder summary once a batch of downloads finishes',
+                'type': 'bool'
+            },
         }
-        
+
         self.file_queue = queue.Queue()
         self.worker_thread = None
         self.stop_event = threading.Event()
         self._current_proc = None
+        # Per-directory result tallies awaiting a batch summary, keyed by dir path
+        self._pending = {}
         
         self.log("Upscale Detector initialized")
         
@@ -74,12 +97,16 @@ class Plugin(BasePlugin):
                 # Wait for a file with timeout so we can check stop_event
                 filepath = self.file_queue.get(timeout=1)
             except queue.Empty:
-                # No files to process right now, loop will continue
+                # Queue drained for now - flush any pending batch summaries
+                self._flush_summaries()
                 continue
 
             try:
-                # Add 2 second delay before checking to ensure file is fully written
-                time.sleep(2)
+                # Wait before checking, both to let the file finish flushing to
+                # disk and to throttle load (spectro is CPU/RAM heavy)
+                delay = self.settings.get('check_delay_seconds', 2)
+                if delay > 0:
+                    time.sleep(delay)
 
                 # Verify file still exists and is readable
                 if not os.path.exists(filepath):
@@ -87,33 +114,9 @@ class Plugin(BasePlugin):
                 elif not os.access(filepath, os.R_OK):
                     self.log(f"File not readable: {os.path.basename(filepath)}")
                 else:
-                    # Process the file
                     result = self._check_file(filepath)
                     if result:
-                        status = result.get('status', 'Unknown')
-                        reason = result.get('reason', '')
-                        filename = os.path.basename(filepath)
-                        file_dir = os.path.dirname(filepath)
-
-                        # Get parent folder name for display
-                        parent_dir = os.path.basename(file_dir) if file_dir else ''
-                        display_path = f"{parent_dir}/{filename}" if parent_dir else filename
-
-                        # Distinct glyph per status (matches the README table):
-                        # Skipped is "-", Error (and anything unexpected) is "!"
-                        symbol = {
-                            'Passed': '✓',
-                            'Failed': '✗',
-                            'Skipped': '-',
-                        }.get(status, '!')
-
-                        # Log result with folder/filename path
-                        log_message = f"{symbol} [{status}] {display_path} - {reason}"
-                        self.log(log_message)
-
-                        # Write to log file (skip "skipped" files unless they were skipped due to size)
-                        if status != 'Skipped' or 'too large' in reason:
-                            self._write_to_log_file(filepath, f"{symbol} [{status}] {filename} - {reason}")
+                        self._report_result(filepath, result)
 
             except Exception as e:
                 self.log(f"Worker thread error: {e}")
@@ -121,6 +124,94 @@ class Plugin(BasePlugin):
             finally:
                 # Mark task as done exactly once per dequeued item
                 self.file_queue.task_done()
+
+    # Glyph per status - matches the table in the README
+    _SYMBOLS = {'Passed': '✓', 'Failed': '✗', 'Skipped': '-'}
+
+    def _report_result(self, filepath, result):
+        """Log one check result and fold it into the pending batch summary"""
+        status = result.get('status', 'Unknown')
+        reason = result.get('reason', '')
+        filename = os.path.basename(filepath)
+        file_dir = os.path.dirname(filepath)
+
+        parent_dir = os.path.basename(file_dir) if file_dir else ''
+        display_path = f"{parent_dir}/{filename}" if parent_dir else filename
+        symbol = self._SYMBOLS.get(status, '!')
+
+        self.log(f"{symbol} [{status}] {display_path} - {reason}")
+
+        # Write to log file (skip "not an audio file" skips, keep size skips)
+        if status != 'Skipped' or 'too large' in reason:
+            self._write_to_log_file(filepath, f"{symbol} [{status}] {filename} - {reason}")
+
+        if status == 'Failed':
+            self.log(f"⚠ UPSCALE DETECTED: {display_path} - {reason}")
+            self._notify(f"Likely upscaled: {display_path}\n{reason}")
+
+        # Accumulate for the per-folder batch summary
+        tally = self._pending.setdefault(
+            file_dir, {'Passed': 0, 'Failed': 0, 'Skipped': 0, 'Error': 0, 'failed': []}
+        )
+        tally[status] = tally.get(status, 0) + 1
+        if status == 'Failed':
+            tally['failed'].append(filename)
+
+    def _flush_summaries(self):
+        """Emit a one-line summary per folder that saw 2+ files in this batch"""
+        if not self._pending:
+            return
+
+        pending, self._pending = self._pending, {}
+        if not self.settings.get('batch_summary', True):
+            return
+
+        music_dir = os.path.expanduser(self.settings['music_directory'])
+        for file_dir, tally in pending.items():
+            total = tally['Passed'] + tally['Failed'] + tally['Skipped'] + tally['Error']
+            if total < 2:
+                continue  # single files already have their own result line
+
+            folder = os.path.basename(file_dir) or file_dir
+            parts = [f"{tally['Passed']} passed", f"{tally['Failed']} failed"]
+            if tally['Skipped']:
+                parts.append(f"{tally['Skipped']} skipped")
+            if tally['Error']:
+                parts.append(f"{tally['Error']} error" + ('s' if tally['Error'] != 1 else ''))
+
+            summary = f"Summary [{folder}]: " + ", ".join(parts)
+            if tally['failed']:
+                summary += " - likely upscaled: " + ", ".join(tally['failed'])
+
+            self.log(summary)
+
+            # Anchor the summary in an album folder's own log (not the root dir,
+            # where each file keeps its own separate log)
+            if file_dir != music_dir:
+                self._append_log(
+                    os.path.join(file_dir, f"{folder} - spectro_check.log"), summary
+                )
+
+            if tally['failed']:
+                self._notify(
+                    f"{folder}: {len(tally['failed'])} likely upscaled\n"
+                    + "\n".join(tally['failed'])
+                )
+
+    def _notify(self, message):
+        """Best-effort Nicotine+ notification; the log line is the real record"""
+        if not self.settings.get('notify_on_failure', True):
+            return
+        core = getattr(self, 'core', None)
+        if core is None:
+            return
+        try:
+            core.notifications.new_text_notification(message, title="Upscale Detector")
+        except Exception:
+            try:
+                core.notifications.new_text_notification(message)
+            except Exception:
+                pass  # notifications API differs by Nicotine+ version - log stands
     
     def download_finished_notification(self, user, virtual_path, real_path):
         """Called when a file download completes"""
@@ -197,7 +288,8 @@ class Plugin(BasePlugin):
             proc = subprocess.Popen(cmd, **popen_kwargs)
             self._current_proc = proc
             try:
-                stdout, stderr = proc.communicate(timeout=60)
+                timeout = self.settings.get('spectro_timeout_seconds', 60)
+                stdout, stderr = proc.communicate(timeout=timeout)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.communicate()
@@ -315,37 +407,35 @@ class Plugin(BasePlugin):
         return os.path.splitext(filepath)[1].lower() in audio_extensions
     
     def _write_to_log_file(self, filepath, log_message):
-        """Write check result to a log file
-        
-        For files in subdirectories (album folders): creates one log per folder with folder name
-        For files in root music directory: creates one log per file with filename
+        """Write a check result to the log for the given audio file.
+
+        Files in the root music directory get one log per file (named after the
+        file); files in a subdirectory (album folder) share one log named after
+        the folder.
+        """
+        file_dir = os.path.dirname(filepath)
+        filename = os.path.basename(filepath)
+        music_dir = os.path.expanduser(self.settings['music_directory'])
+
+        if file_dir == music_dir:
+            base = os.path.splitext(filename)[0]
+        else:
+            base = os.path.basename(file_dir)
+
+        self._append_log(os.path.join(file_dir, f"{base} - spectro_check.log"), log_message)
+
+    def _append_log(self, log_path, message):
+        """Append one timestamped line to a log file (no-op if logging is off).
+
+        The timestamp lets a re-download of the same file/album leave an
+        appended history rather than an ambiguous mix of old and new results.
         """
         if not self.settings['enable_logging']:
             return
-            
         try:
-            file_dir = os.path.dirname(filepath)
-            filename = os.path.basename(filepath)
-            filename_without_ext = os.path.splitext(filename)[0]
-            music_dir = os.path.expanduser(self.settings['music_directory'])
-            
-            # Check if file is in root music directory or a subdirectory
-            if file_dir == music_dir:
-                # File is in root music directory - create log with filename
-                log_filename = f"{filename_without_ext} - spectro_check.log"
-                log_path = os.path.join(file_dir, log_filename)
-            else:
-                # File is in a subdirectory (album folder) - create log with folder name
-                folder_name = os.path.basename(file_dir)
-                log_filename = f"{folder_name} - spectro_check.log"
-                log_path = os.path.join(file_dir, log_filename)
-            
-            # Append with a timestamp so fresh results can be told apart from
-            # older ones left by a previous download of the same file/album
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             with open(log_path, 'a', encoding='utf-8') as log_file:
-                log_file.write(f"[{timestamp}] {log_message}\n")
-                
+                log_file.write(f"[{timestamp}] {message}\n")
         except Exception as e:
             self.log(f"Error writing to log file: {e}")
     
@@ -372,5 +462,8 @@ class Plugin(BasePlugin):
                 self.log("Warning: Worker thread did not stop cleanly")
             else:
                 self.log("Worker thread stopped")
-        
+
+        # Emit a summary for whatever the worker managed to check before stopping
+        self._flush_summaries()
+
         self.log("Upscale Detector disabled")
