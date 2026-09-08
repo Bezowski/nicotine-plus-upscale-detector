@@ -13,6 +13,11 @@ from datetime import datetime
 from pathlib import Path
 from pynicotine.pluginsystem import BasePlugin
 
+# Tunables that rarely need changing (see README troubleshooting). Kept here
+# rather than as plugin settings to avoid cluttering the preferences panel.
+CHECK_DELAY_SECONDS = 2       # pause before each check: lets the file settle, throttles load
+SPECTRO_TIMEOUT_SECONDS = 60  # give up on a single spectro analysis after this long
+
 
 class Plugin(BasePlugin):
     """
@@ -26,8 +31,6 @@ class Plugin(BasePlugin):
             'enable_logging': True,
             'music_directory': str(Path.home() / 'Music'),
             'max_file_size_mb': 150,
-            'check_delay_seconds': 2,
-            'spectro_timeout_seconds': 60,
             'notify_on_failure': True,
             'batch_summary': True,
         }
@@ -45,16 +48,6 @@ class Plugin(BasePlugin):
                 'description': 'Skip files larger than this size in MB (0 = no limit)',
                 'type': 'int',
                 'minimum': 0
-            },
-            'check_delay_seconds': {
-                'description': 'Seconds to wait before checking each file (throttles load)',
-                'type': 'int',
-                'minimum': 0
-            },
-            'spectro_timeout_seconds': {
-                'description': 'Give up on a spectro analysis after this many seconds',
-                'type': 'int',
-                'minimum': 5
             },
             'notify_on_failure': {
                 'description': 'Show a Nicotine+ notification when a likely upscale is found',
@@ -104,9 +97,8 @@ class Plugin(BasePlugin):
             try:
                 # Wait before checking, both to let the file finish flushing to
                 # disk and to throttle load (spectro is CPU/RAM heavy)
-                delay = self.settings.get('check_delay_seconds', 2)
-                if delay > 0:
-                    time.sleep(delay)
+                if CHECK_DELAY_SECONDS > 0:
+                    time.sleep(CHECK_DELAY_SECONDS)
 
                 # Verify file still exists and is readable
                 if not os.path.exists(filepath):
@@ -290,8 +282,7 @@ class Plugin(BasePlugin):
             proc = subprocess.Popen(cmd, **popen_kwargs)
             self._current_proc = proc
             try:
-                timeout = self.settings.get('spectro_timeout_seconds', 60)
-                stdout, stderr = proc.communicate(timeout=timeout)
+                stdout, stderr = proc.communicate(timeout=SPECTRO_TIMEOUT_SECONDS)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.communicate()

@@ -223,21 +223,6 @@ Most music files are well under this limit:
 * Album (10 tracks): ~100 MB
 * Large DJ mixes and live sets may exceed this limit
 
-### Check Delay (seconds)
-
-Seconds to wait before analysing each file (default: 2)
-
-The delay lets the download finish flushing to disk and throttles load, since
-spectro is CPU- and RAM-intensive. Raise it if your system stays sluggish while
-checks run; set to `0` for no delay.
-
-### Spectro Timeout (seconds)
-
-Give up on a single spectro analysis after this many seconds (default: 60)
-
-Raise it if large files near the size limit are being reported as errors because
-the analysis didn't finish in time.
-
 ### Notify on Failure
 
 Show a Nicotine+ notification when a likely upscale is found (default: enabled)
@@ -346,11 +331,11 @@ Test: `spectro check /path/to/file.mp3`
 
 ### System becomes sluggish during checks
 
-The plugin waits a configurable delay (default 2 seconds) before each file check to prevent system overload. If you still experience sluggishness:
+The plugin waits 2 seconds before each file check and processes one file at a time to prevent system overload. If you still experience sluggishness:
 
 1. Check system resources with `htop` during file checks
 2. Consider checking large files manually after downloads complete
-3. Raise **Check Delay (seconds)** in the plugin settings
+3. Raise `CHECK_DELAY_SECONDS` near the top of `upscale-detector/__init__.py`
 
 ### Large files cause system to freeze or get "Killed"
 
@@ -360,6 +345,10 @@ Spectro can consume excessive memory on very large files (17+ GB RAM for a 261 M
 2. Adjust `max_file_size_mb` in plugin settings if needed
 3. You can check large files manually, but be aware they may trigger the OOM killer
 4. To check if OOM killer was triggered: `sudo dmesg | grep -i "out of memory"`
+
+If large files below the limit are being reported as `[Error]` because the
+analysis takes too long, raise `SPECTRO_TIMEOUT_SECONDS` near the top of
+`upscale-detector/__init__.py` (default 60).
 
 For reference on RAM usage vs file size:
 * 100 MB file: ~10 GB RAM needed
