@@ -10,6 +10,7 @@ import threading
 import queue
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 from pynicotine.pluginsystem import BasePlugin
 
@@ -98,12 +99,13 @@ class Plugin(BasePlugin):
                         parent_dir = os.path.basename(file_dir) if file_dir else ''
                         display_path = f"{parent_dir}/{filename}" if parent_dir else filename
 
-                        if status == 'Passed':
-                            symbol = "✓"
-                        elif status == 'Failed':
-                            symbol = "✗"
-                        else:
-                            symbol = "!"
+                        # Distinct glyph per status (matches the README table):
+                        # Skipped is "-", Error (and anything unexpected) is "!"
+                        symbol = {
+                            'Passed': '✓',
+                            'Failed': '✗',
+                            'Skipped': '-',
+                        }.get(status, '!')
 
                         # Log result with folder/filename path
                         log_message = f"{symbol} [{status}] {display_path} - {reason}"
@@ -338,9 +340,11 @@ class Plugin(BasePlugin):
                 log_filename = f"{folder_name} - spectro_check.log"
                 log_path = os.path.join(file_dir, log_filename)
             
-            # Write to log file (append mode)
+            # Append with a timestamp so fresh results can be told apart from
+            # older ones left by a previous download of the same file/album
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             with open(log_path, 'a', encoding='utf-8') as log_file:
-                log_file.write(log_message + '\n')
+                log_file.write(f"[{timestamp}] {log_message}\n")
                 
         except Exception as e:
             self.log(f"Error writing to log file: {e}")

@@ -250,12 +250,14 @@ When logging is enabled, the plugin creates log files with check results:
 └── Eric Sneo Live @ Kinki Palace (03-10-07) - spectro_check.log
 ```
 
-Log files are created in the same directory as the audio files and contain check results in this format:
+Log files are created in the same directory as the audio files. Each result line is
+prefixed with a timestamp, so re-downloading a file or album leaves an
+appended history rather than an ambiguous mix of old and new results:
 
 ```
-✓ [Passed] 01 Track One.mp3 - 320 kbps - frequency spectrum looks good
-✓ [Passed] 02 Track Two.mp3 - 320 kbps - frequency spectrum looks good
-✗ [Failed] 03 Track Three.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
+[2026-02-14 21:03:11] ✓ [Passed] 01 Track One.mp3 - 320 kbps - frequency spectrum looks good
+[2026-02-14 21:03:14] ✓ [Passed] 02 Track Two.mp3 - 320 kbps - frequency spectrum looks good
+[2026-02-14 21:03:18] ✗ [Failed] 03 Track Three.mp3 - 320 kbps claimed, but max frequency 16780 Hz - likely upscaled
 ```
 
 ### Console Output
